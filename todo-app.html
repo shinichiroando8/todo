@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>わたしのTodoリスト</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-1: #FFF3F8;
+    --bg-2: #FBEAFF;
+    --surface: #FFFFFF;
+    --ink: #5B3A4E;
+    --ink-soft: #8C6B7E;
+    --ink-faint: #C7A9BC;
+    --line: rgba(214, 140, 178, 0.18);
+    --line-strong: rgba(214, 140, 178, 0.32);
+    --shadow-card: 0 8px 20px -12px rgba(214, 110, 160, 0.35);
+    --shadow-card-hover: 0 16px 30px -14px rgba(214, 110, 160, 0.45);
+    --shadow-panel: 0 24px 55px -28px rgba(200, 100, 150, 0.4);
+
+    --todo-a: #FF8FB6;
+    --todo-b: #FFB6CE;
+    --todo-bg: #FFE3ED;
+    --todo-ink: #C64B7C;
+
+    --doing-a: #B98CF2;
+    --doing-b: #D3B4FA;
+    --doing-bg: #F1E5FF;
+    --doing-ink: #8A55D6;
+
+    --done-a: #6FCB9F;
+    --done-b: #A3E4C4;
+    --done-bg: #E1F7EC;
+    --done-ink: #2F9E6C;
+
+    --accent: #FF7CAA;
+    --accent-strong: #F2568E;
+    --accent-ink: #FFFFFF;
+
+    --flower-1: #FFC2DC;
+    --flower-2: #E4C6FF;
+    --flower-3: #FFE2A8;
+    --flower-center: #FFF3B0;
+
+    --font-body: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg-1: #2B1826;
+      --bg-2: #22182C;
+      --surface: #33203A;
+      --ink: #F7E6EF;
+      --ink-soft: #D9B7CB;
+      --ink-faint: #8C6B7E;
+      --line: rgba(247, 230, 239, 0.12);
+      --line-strong: rgba(247, 230, 239, 0.24);
+      --shadow-card: 0 8px 20px -10px rgba(0, 0, 0, 0.5);
+      --shadow-card-hover: 0 16px 30px -12px rgba(0, 0, 0, 0.6);
+      --shadow-panel: 0 24px 55px -26px rgba(0, 0, 0, 0.65);
+
+      --todo-a: #FF8FB6;
+      --todo-b: #FFB6CE;
+      --todo-bg: #4A2438;
+      --todo-ink: #FFAECB;
+
+      --doing-a: #C7A0FA;
+      --doing-b: #D3B4FA;
+      --doing-bg: #3A2650;
+      --doing-ink: #D8B9FF;
+
+      --done-a: #7FDCA9;
+      --done-b: #A3E4C4;
+      --done-bg: #1F3E2E;
+      --done-ink: #9BE8C0;
+
+      --accent: #FF7CAA;
+      --accent-strong: #FF9AC1;
+      --accent-ink: #2B1826;
+
+      --flower-1: #6B3E56;
+      --flower-2: #5A4270;
+      --flower-3: #6B5A34;
+      --flower-center: #8A7442;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg-1: #2B1826;
+    --bg-2: #22182C;
+    --surface: #33203A;
+    --ink: #F7E6EF;
+    --ink-soft: #D9B7CB;
+    --ink-faint: #8C6B7E;
+    --line: rgba(247, 230, 239, 0.12);
+    --line-strong: rgba(247, 230, 239, 0.24);
+    --shadow-card: 0 8px 20px -10px rgba(0, 0, 0, 0.5);
+    --shadow-card-hover: 0 16px 30px -12px rgba(0, 0, 0, 0.6);
+    --shadow-panel: 0 24px 55px -26px rgba(0, 0, 0, 0.65);
+
+    --todo-a: #FF8FB6;
+    --todo-b: #FFB6CE;
+    --todo-bg: #4A2438;
+    --todo-ink: #FFAECB;
+
+    --doing-a: #C7A0FA;
+    --doing-b: #D3B4FA;
+    --doing-bg: #3A2650;
+    --doing-ink: #D8B9FF;
+
+    --done-a: #7FDCA9;
+    --done-b: #A3E4C4;
+    --done-bg: #1F3E2E;
+    --done-ink: #9BE8C0;
+
+    --accent: #FF7CAA;
+    --accent-strong: #FF9AC1;
+    --accent-ink: #2B1826;
+
+    --flower-1: #6B3E56;
+    --flower-2: #5A4270;
+    --flower-3: #6B5A34;
+    --flower-center: #8A7442;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--bg-1);
+    background-image:
+      radial-gradient(circle at 10% 0%, var(--bg-2), transparent 55%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cg%3E%3Cg transform='translate(28,26)'%3E%3Ccircle cx='0' cy='-9' r='7' fill='%23FFC2DC'/%3E%3Ccircle cx='8' cy='-3' r='7' fill='%23FFC2DC'/%3E%3Ccircle cx='5' cy='8' r='7' fill='%23FFC2DC'/%3E%3Ccircle cx='-5' cy='8' r='7' fill='%23FFC2DC'/%3E%3Ccircle cx='-8' cy='-3' r='7' fill='%23FFC2DC'/%3E%3Ccircle cx='0' cy='0' r='4.5' fill='%23FFE2A8'/%3E%3C/g%3E%3Cg transform='translate(96,80) scale(0.75)'%3E%3Ccircle cx='0' cy='-9' r='7' fill='%23E4C6FF'/%3E%3Ccircle cx='8' cy='-3' r='7' fill='%23E4C6FF'/%3E%3Ccircle cx='5' cy='8' r='7' fill='%23E4C6FF'/%3E%3Ccircle cx='-5' cy='8' r='7' fill='%23E4C6FF'/%3E%3Ccircle cx='-8' cy='-3' r='7' fill='%23E4C6FF'/%3E%3Ccircle cx='0' cy='0' r='4.5' fill='%23FFF3B0'/%3E%3C/g%3E%3Cg transform='translate(55,105) scale(0.55)'%3E%3Ccircle cx='0' cy='-9' r='7' fill='%23FFC2DC'/%3E%3Ccircle cx='8' cy='-3' r='7' fill='%23FFC2DC'/%3E%3Ccircle cx='5' cy='8' r='7' fill='%23FFC2DC'/%3E%3Ccircle cx='-5' cy='8' r='7' fill='%23FFC2DC'/%3E%3Ccircle cx='-8' cy='-3' r='7' fill='%23FFC2DC'/%3E%3Ccircle cx='0' cy='0' r='4.5' fill='%23FFE2A8'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    background-repeat: no-repeat, repeat;
+    background-size: cover, 140px 140px;
+    color: var(--ink);
+    font-family: var(--font-body);
+    padding: 40px 20px 60px;
+  }
+
+  main {
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
+  h1 {
+    font-size: 1.9rem;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: 0.02em;
+    color: var(--accent-strong);
+  }
+
+  .subtitle {
+    display: block;
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 0.88rem;
+    font-weight: 500;
+    margin-bottom: 26px;
+  }
+
+  .add-panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    box-shadow: var(--shadow-panel);
+    padding: 18px;
+    margin-bottom: 28px;
+  }
+
+  .add-row {
+    display: flex;
+    gap: 10px;
+  }
+
+  .add-row input[type="text"] {
+    flex: 1;
+    padding: 13px 18px;
+    border-radius: 999px;
+    border: 2px solid var(--line-strong);
+    background: var(--bg-1);
+    color: var(--ink);
+    font-size: 0.97rem;
+    font-family: inherit;
+    font-weight: 500;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+
+  .add-row input[type="text"]::placeholder {
+    color: var(--ink-faint);
+  }
+
+  .add-row input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+
+  .add-row button {
+    padding: 13px 26px;
+    border-radius: 999px;
+    border: none;
+    background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+    color: var(--accent-ink);
+    font-weight: 700;
+    font-size: 0.95rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    white-space: nowrap;
+    box-shadow: 0 10px 22px -8px color-mix(in srgb, var(--accent) 75%, transparent);
+  }
+
+  .add-row button:hover {
+    transform: translateY(-1px) scale(1.03);
+  }
+
+  .add-row button:active {
+    transform: translateY(0) scale(0.99);
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+
+  @media (max-width: 760px) {
+    .board { grid-template-columns: 1fr; }
+  }
+
+  .column {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    box-shadow: var(--shadow-panel);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    min-height: 160px;
+  }
+
+  .column-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 2px dashed transparent;
+  }
+
+  .column[data-status="todo"] .column-head { border-color: var(--todo-a); }
+  .column[data-status="doing"] .column-head { border-color: var(--doing-a); }
+  .column[data-status="done"] .column-head { border-color: var(--done-a); }
+
+  .flower-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+  }
+
+  .column-title {
+    font-weight: 700;
+    font-size: 0.98rem;
+    flex: 1;
+  }
+
+  .count-badge {
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    background: var(--bg-1);
+  }
+
+  .cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+  }
+
+  .card {
+    background: var(--bg-1);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 12px 14px 10px;
+    box-shadow: var(--shadow-card);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-2px) rotate(-0.5deg);
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  .column[data-status="todo"] .card { background: var(--todo-bg); }
+  .column[data-status="doing"] .card { background: var(--doing-bg); }
+  .column[data-status="done"] .card { background: var(--done-bg); }
+
+  .card-text {
+    font-size: 0.92rem;
+    font-weight: 500;
+    line-height: 1.5;
+    word-break: break-word;
+    margin-bottom: 10px;
+    color: var(--ink);
+  }
+
+  .column[data-status="done"] .card-text {
+    text-decoration: line-through;
+    color: var(--ink-faint);
+  }
+
+  .card-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .move-btn {
+    background: var(--surface);
+    border: 1.5px solid var(--line-strong);
+    color: var(--ink-soft);
+    font-size: 0.76rem;
+    font-weight: 700;
+    font-family: inherit;
+    padding: 5px 11px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
+  }
+
+  .column[data-status="todo"] .move-btn:hover { background: var(--todo-a); border-color: var(--todo-a); color: #fff; transform: scale(1.06); }
+  .column[data-status="doing"] .move-btn:hover { background: var(--doing-a); border-color: var(--doing-a); color: #fff; transform: scale(1.06); }
+  .column[data-status="done"] .move-btn:hover { background: var(--done-a); border-color: var(--done-a); color: #fff; transform: scale(1.06); }
+
+  .move-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  .move-btn:disabled:hover {
+    background: var(--surface);
+    color: var(--ink-soft);
+    transform: none;
+  }
+
+  .spacer { flex: 1; }
+
+  .delete-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: var(--ink-faint);
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+
+  .delete-btn:hover {
+    background: var(--todo-a);
+    color: #fff;
+    transform: rotate(90deg);
+  }
+
+  .empty-hint {
+    color: var(--ink-faint);
+    font-size: 0.84rem;
+    font-weight: 500;
+    text-align: center;
+    padding: 20px 4px;
+    border: 2px dashed var(--line-strong);
+    border-radius: 14px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>🌸 わたしのTodoリスト 🌸</h1>
+  </header>
+  <span class="subtitle">追加 ⋆ 状態を切り替え ⋆ 削除</span>
+
+  <div class="add-panel">
+    <div class="add-row">
+      <input type="text" id="todo-input" placeholder="やることを入力…" maxlength="120">
+      <button id="add-btn">追加</button>
+    </div>
+  </div>
+
+  <div class="board">
+    <section class="column" data-status="todo">
+      <div class="column-head">
+        <span class="flower-icon">🌱</span>
+        <span class="column-title">未着手</span>
+        <span class="count-badge" id="count-todo">0</span>
+      </div>
+      <div class="cards" id="cards-todo"></div>
+    </section>
+
+    <section class="column" data-status="doing">
+      <div class="column-head">
+        <span class="flower-icon">🌷</span>
+        <span class="column-title">着手中</span>
+        <span class="count-badge" id="count-doing">0</span>
+      </div>
+      <div class="cards" id="cards-doing"></div>
+    </section>
+
+    <section class="column" data-status="done">
+      <div class="column-head">
+        <span class="flower-icon">💮</span>
+        <span class="column-title">完了</span>
+        <span class="count-badge" id="count-done">0</span>
+      </div>
+      <div class="cards" id="cards-done"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+  const STORAGE_KEY = "todo-app-items";
+  const STATUS_ORDER = ["todo", "doing", "done"];
+
+  let items = [];
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      items = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      items = [];
+    }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch (e) {}
+  }
+
+  function makeCard(item) {
+    const idx = STATUS_ORDER.indexOf(item.status);
+
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const text = document.createElement("div");
+    text.className = "card-text";
+    text.textContent = item.text;
+    card.appendChild(text);
+
+    const actions = document.createElement("div");
+    actions.className = "card-actions";
+
+    const back = document.createElement("button");
+    back.className = "move-btn";
+    back.textContent = "‹ 戻す";
+    back.disabled = idx === 0;
+    back.addEventListener("click", () => moveStatus(item.id, -1));
+    actions.appendChild(back);
+
+    const fwd = document.createElement("button");
+    fwd.className = "move-btn";
+    fwd.textContent = "進める ›";
+    fwd.disabled = idx === STATUS_ORDER.length - 1;
+    fwd.addEventListener("click", () => moveStatus(item.id, 1));
+    actions.appendChild(fwd);
+
+    const spacer = document.createElement("div");
+    spacer.className = "spacer";
+    actions.appendChild(spacer);
+
+    const del = document.createElement("button");
+    del.className = "delete-btn";
+    del.textContent = "×";
+    del.title = "削除";
+    del.addEventListener("click", () => removeItem(item.id));
+    actions.appendChild(del);
+
+    card.appendChild(actions);
+    return card;
+  }
+
+  function render() {
+    STATUS_ORDER.forEach(status => {
+      const container = document.getElementById("cards-" + status);
+      container.innerHTML = "";
+      const group = items.filter(it => it.status === status);
+
+      document.getElementById("count-" + status).textContent = group.length;
+
+      if (group.length === 0) {
+        const hint = document.createElement("div");
+        hint.className = "empty-hint";
+        hint.textContent = "まだありません";
+        container.appendChild(hint);
+        return;
+      }
+
+      group.forEach(item => container.appendChild(makeCard(item)));
+    });
+  }
+
+  function addItem() {
+    const input = document.getElementById("todo-input");
+    const text = input.value.trim();
+    if (!text) return;
+    items.push({ id: Date.now() + Math.random(), text, status: "todo" });
+    input.value = "";
+    save();
+    render();
+    input.focus();
+  }
+
+  function moveStatus(id, delta) {
+    const item = items.find(it => it.id === id);
+    if (!item) return;
+    const idx = STATUS_ORDER.indexOf(item.status);
+    const next = idx + delta;
+    if (next < 0 || next >= STATUS_ORDER.length) return;
+    item.status = STATUS_ORDER[next];
+    save();
+    render();
+  }
+
+  function removeItem(id) {
+    items = items.filter(it => it.id !== id);
+    save();
+    render();
+  }
+
+  document.getElementById("add-btn").addEventListener("click", addItem);
+  document.getElementById("todo-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") addItem();
+  });
+
+  load();
+  render();
+</script>
+</body>
+</html>
