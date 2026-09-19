@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>予約チケット(動作デモ) — 面談予約・支払いアプリ</title>
+<style>
+  :root {
+    --bg: #E7EAE2;
+    --surface: #FFFFFF;
+    --surface-2: #DEE3D8;
+    --ink: #1B2420;
+    --ink-soft: #57624F;
+    --ink-faint: #808B76;
+    --accent: #2F6B4F;
+    --accent-strong: #234F3A;
+    --accent-ink: #F3F7EF;
+    --gold: #8E6B2A;
+    --good: #2F6B4F;
+    --good-ink: #E7F1EA;
+    --warn: #A2432A;
+    --warn-ink: #FBF1EC;
+    --line: rgba(27, 36, 32, 0.16);
+    --line-strong: rgba(27, 36, 32, 0.3);
+    --shadow: 0 18px 40px -22px rgba(20, 30, 22, 0.35);
+    --font-display: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", "Segoe UI", sans-serif;
+    --font-body: "Hiragino Sans", "Yu Gothic", Meiryo, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); line-height: 1.7; }
+  a { color: inherit; }
+  button { font-family: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 clamp(16px, 4vw, 32px); }
+
+  .demo-banner {
+    background: var(--accent-strong); color: var(--accent-ink);
+    font-size: 12.5px; text-align: center; padding: 8px 12px; letter-spacing: 0.02em;
+  }
+
+  header.site { padding: 18px 0; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .site-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: baseline; gap: 10px; font-family: var(--font-display); font-weight: 800; font-size: 17px; }
+  .brand .mark {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 7px;
+    background: var(--accent); color: var(--accent-ink);
+    font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+    transform: rotate(-6deg);
+  }
+  .brand .sub { font-weight: 500; font-size: 11.5px; color: var(--ink-faint); }
+
+  .role-switch { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 8px; }
+  .role-switch button { border: none; background: transparent; padding: 7px 14px; font-size: 13px; font-weight: 700; color: var(--ink-soft); border-radius: 6px; cursor: pointer; }
+  .role-switch button.active { background: var(--accent); color: var(--accent-ink); }
+
+  nav.tabs { display: flex; gap: 6px; padding: 12px 0 0; flex-wrap: wrap; }
+  nav.tabs button { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-soft); padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  nav.tabs button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+  main { padding: clamp(24px, 5vw, 44px) 0 64px; }
+
+  h1 { font-family: var(--font-display); font-size: clamp(20px, 3vw, 26px); font-weight: 800; margin: 0 0 6px; }
+  h2 { font-family: var(--font-display); font-size: 18px; font-weight: 800; margin: 0 0 4px; }
+  .page-lead { color: var(--ink-soft); font-size: 14px; margin: 0 0 24px; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; margin-bottom: 14px; }
+
+  .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  @media (max-width: 760px) { .menu-grid { grid-template-columns: 1fr; } }
+  .menu-card { display: flex; flex-direction: column; gap: 10px; }
+  .menu-card h3 { margin: 0; font-size: 16px; }
+  .menu-card .duration { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-faint); }
+  .menu-card p { margin: 0; font-size: 13px; color: var(--ink-soft); flex: 1; }
+  .menu-card .fee { font-family: var(--font-mono); font-size: 20px; font-weight: 700; color: var(--accent-strong); }
+
+  .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); text-decoration: none; margin-bottom: 18px; cursor: pointer; border: none; background: none; padding: 0; }
+  .back-link:hover { color: var(--ink); }
+
+  .chip-select { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--ink-faint); border: 1px dashed var(--line-strong); border-radius: 999px; padding: 5px 12px; display: inline-block; margin-bottom: 18px; }
+  .chip-select strong { color: var(--ink); font-weight: 700; }
+
+  .day-block { margin-bottom: 16px; }
+  .day-block .day-label { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 8px; }
+  .slot-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .slot-btn { font-family: var(--font-mono); font-size: 13px; font-weight: 700; padding: 9px 16px; border-radius: 7px; border: 1px solid var(--line-strong); background: var(--surface); cursor: pointer; }
+  .slot-btn:hover { border-color: var(--accent); color: var(--accent-strong); }
+  .slot-btn.blocked, .slot-btn.booked { color: var(--ink-faint); background: var(--surface-2); cursor: not-allowed; text-decoration: line-through; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 6px; }
+  .field input { width: 100%; padding: 11px 12px; border: 1px solid var(--line-strong); border-radius: 7px; font-size: 14px; font-family: inherit; background: var(--surface); color: var(--ink); }
+  .field .hint { font-size: 11.5px; color: var(--ink-faint); margin-top: 5px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 560px) { .field-row { grid-template-columns: 1fr; } }
+  .field-error { color: var(--warn); font-size: 12.5px; margin: -4px 0 16px; }
+
+  .panel-2 { background: var(--surface-2); border-radius: 10px; padding: 18px 20px; margin: 18px 0; }
+  .panel-2 .plabel { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-faint); margin-bottom: 12px; text-transform: uppercase; }
+
+  .btn { font-size: 14px; font-weight: 700; padding: 12px 22px; border-radius: 7px; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: transform .15s ease; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow); }
+  .btn-ghost { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+  .btn-warn { background: transparent; color: var(--warn); border-color: var(--warn); }
+  .btn-block { width: 100%; justify-content: center; }
+  .btn-sm { padding: 8px 14px; font-size: 12.5px; }
+  .btn[disabled] { opacity: .5; cursor: not-allowed; transform: none; }
+
+  .note-box { background: #FDF3E3; border-radius: 10px; padding: 14px 16px; font-size: 12.5px; color: #6B4A16; margin-top: 4px; }
+
+  /* ---------- ticket / receipt ---------- */
+  .ticket-view { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); display: grid; grid-template-columns: 1fr 108px; margin-bottom: 20px; }
+  .ticket-view-main { padding: 24px 22px; display: flex; flex-direction: column; gap: 14px; }
+  .ticket-view-row { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+  .ticket-view .label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); display: block; margin-bottom: 4px; }
+  .ticket-view .value { font-family: var(--font-mono); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ticket-view .value.big { font-size: 22px; font-weight: 700; font-family: var(--font-body); }
+  .ticket-divider { position: relative; border-left: 2px dashed var(--line-strong); }
+  .ticket-divider::before, .ticket-divider::after { content: ""; position: absolute; left: -14px; width: 28px; height: 28px; border-radius: 50%; background: var(--bg); }
+  .ticket-divider::before { top: -14px; }
+  .ticket-divider::after { bottom: -14px; }
+  .ticket-view-stub { padding: 24px 14px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; }
+  .stamp { font-family: var(--font-mono); font-size: 12px; font-weight: 700; letter-spacing: 0.05em; border-radius: 50%; width: 62px; height: 62px; display: flex; align-items: center; justify-content: center; transform: rotate(-10deg); border: 2px solid; }
+  .stamp.ok { color: var(--good); border-color: var(--good); }
+  .stamp.cancel { color: var(--warn); border-color: var(--warn); }
+  .ticket-view-stub .no { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint); }
+  @media (max-width: 620px) {
+    .ticket-view { grid-template-columns: 1fr; }
+    .ticket-divider { border-left: none; border-top: 1px dashed var(--line-strong); }
+    .ticket-divider::before, .ticket-divider::after { top: -14px; bottom: auto; }
+    .ticket-divider::before { left: -14px; }
+    .ticket-divider::after { left: auto; right: -14px; }
+    .ticket-view-stub { flex-direction: row; }
+  }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; font-family: var(--font-mono); }
+  .badge.confirmed { background: var(--good-ink); color: var(--good); }
+  .badge.cancelled { background: var(--warn-ink); color: var(--warn); }
+
+  .res-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+  .confirm-box { background: var(--warn-ink); border-radius: 8px; padding: 12px 14px; margin-top: 10px; font-size: 13px; color: #6B2A16; }
+  .confirm-box .row { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* ---------- stats / table (admin) ---------- */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 700px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .stat .num { font-family: var(--font-mono); font-size: 22px; font-weight: 700; }
+  .stat .label { font-size: 12px; color: var(--ink-faint); }
+
+  table.reg-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: 13px; }
+  table.reg-table th, table.reg-table td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  table.reg-table th { background: var(--surface-2); font-size: 11.5px; color: var(--ink-soft); font-weight: 700; }
+  table.reg-table tr:last-child td { border-bottom: none; }
+  .table-wrap { overflow-x: auto; }
+  .row-btn { font-size: 12px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); cursor: pointer; }
+  .row-btn:hover { background: var(--surface-2); }
+  .row-btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+  .empty { text-align: center; padding: 40px 20px; color: var(--ink-faint); font-size: 13.5px; }
+
+  .slot-admin-day { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+  .slot-admin-day:last-child { border-bottom: none; }
+  .slot-admin-day .day-label { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; width: 96px; flex-shrink: 0; }
+  .slot-chip { font-family: var(--font-mono); font-size: 12px; font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); cursor: pointer; }
+  .slot-chip.open { color: var(--good); border-color: var(--good); background: var(--good-ink); }
+  .slot-chip.blocked { color: var(--ink-faint); text-decoration: line-through; }
+  .slot-chip.booked { color: var(--gold); border-color: var(--gold); background: #FDF3E3; cursor: default; }
+
+  footer.site { text-align: center; padding: 24px 0 40px; font-size: 12px; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<div class="demo-banner">これは動作イメージのデモです。実際の決済・メール送信は行われません(入力内容は端末のブラウザ内にのみ保存されます)。</div>
+
+<header class="site">
+  <div class="wrap">
+    <div class="site-head">
+      <div class="brand">
+        <span class="mark">ヨ</span>
+        予約チケット
+        <span class="sub">面談予約・支払いアプリ</span>
+      </div>
+      <div class="role-switch">
+        <button id="role-member" class="active">面談を受ける方</button>
+        <button id="role-admin">面談担当者</button>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs-member">
+      <button data-view="book" class="active">予約する</button>
+      <button data-view="mypage">マイページ</button>
+    </nav>
+    <nav class="tabs" id="tabs-admin" style="display:none;">
+      <button data-view="admin-list" class="active">予約一覧</button>
+      <button data-view="admin-slots">空き枠設定</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" id="view-root"></main>
+
+<footer class="site">予約チケット — 面談予約・支払いアプリ 動作デモ</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORE_KEY = "yoyaku_ticket_app_demo_v1";
+  var TIMES = ["10:00", "14:00", "19:00"];
+  var WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+  function pad2(n) { return String(n).length < 2 ? "0" + n : String(n); }
+  function toISODate(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  function todayStr() { return toISODate(new Date()); }
+  function fmtDate(iso) {
+    var p = iso.split("-");
+    var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+    return Number(p[1]) + "/" + Number(p[2]) + "(" + WEEKDAYS[d.getDay()] + ")";
+  }
+  function slotDateTime(date, time) {
+    var p = date.split("-"), t = time.split(":");
+    return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), Number(t[0]), Number(t[1]));
+  }
+  function yen(n) { return "¥" + Number(n).toLocaleString("ja-JP"); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function uid(prefix) { return prefix + "-" + Math.random().toString(36).slice(2, 8); }
+
+  function generateDefaultSlots() {
+    var slots = [];
+    var base = new Date();
+    for (var i = 0; i < 10; i++) {
+      var d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+      var ds = toISODate(d);
+      for (var t = 0; t < TIMES.length; t++) {
+        slots.push({ id: ds + "-" + TIMES[t].replace(":", ""), date: ds, time: TIMES[t], status: "open" });
+      }
+    }
+    return slots;
+  }
+
+  function defaultState() {
+    var slots = generateDefaultSlots();
+    slots[4].status = "booked"; // tomorrow 14:00
+    return {
+      seq: 2,
+      menus: [
+        { id: "m1", name: "高ストレス相談", duration: 45, fee: 2000, desc: "ストレスチェックで高ストレスと判定された方のための面談です。心身の状態や働き方についてご相談いただけます。" },
+        { id: "m2", name: "復職支援相談", duration: 50, fee: 2000, desc: "休職からの職場復帰に向けて、業務内容や働き方の調整について一緒に整理します。" }
+      ],
+      slots: slots,
+      reservations: [
+        {
+          id: uid("r"), no: "00001", menuId: "m1", slotId: slots[4].id, date: slots[4].date, time: slots[4].time,
+          name: "田中 花子", email: "hanako@example.com", fee: 2000, cardLast4: "4242",
+          status: "confirmed", createdAt: Date.now()
+        },
+        {
+          id: uid("r"), no: "00002", menuId: "m2", slotId: slots[0].id, date: slots[0].date, time: slots[0].time,
+          name: "佐藤 健太", email: "kenta@example.com", fee: 2000, cardLast4: "1881",
+          status: "cancelled", createdAt: Date.now()
+        }
+      ]
+    };
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return defaultState();
+      var parsed = JSON.parse(raw);
+      if (!parsed || !parsed.menus || !parsed.slots || !parsed.reservations) return defaultState();
+      return parsed;
+    } catch (e) { return defaultState(); }
+  }
+
+  var state = loadState();
+  function saveState() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
+
+  function findMenu(id) { for (var i = 0; i < state.menus.length; i++) if (state.menus[i].id === id) return state.menus[i]; return null; }
+  function findSlot(id) { for (var i = 0; i < state.slots.length; i++) if (state.slots[i].id === id) return state.slots[i]; return null; }
+  function findReservation(id) { for (var i = 0; i < state.reservations.length; i++) if (state.reservations[i].id === id) return state.reservations[i]; return null; }
+
+  function isChangeable(res) {
+    if (res.status !== "confirmed") return false;
+    var dt = slotDateTime(res.date, res.time);
+    return (dt.getTime() - Date.now()) > 3 * 60 * 60 * 1000; // 3時間前まで
+  }
+
+  function freeSlot(slotId) { var s = findSlot(slotId); if (s && s.status === "booked") s.status = "open"; }
+
+  /* ---------------- role / router ---------------- */
+  var role = "member";
+  var view = "book";
+
+  function go(v) {
+    view = v;
+    resetBookFlow();
+    cancelConfirmId = null;
+    var tabs = document.querySelectorAll("#tabs-" + role + " button");
+    tabs.forEach(function (b) { b.classList.toggle("active", b.dataset.view === v); });
+    render();
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  document.getElementById("role-member").addEventListener("click", function () {
+    role = "member";
+    document.getElementById("role-member").classList.add("active");
+    document.getElementById("role-admin").classList.remove("active");
+    document.getElementById("tabs-member").style.display = "flex";
+    document.getElementById("tabs-admin").style.display = "none";
+    go("book");
+  });
+  document.getElementById("role-admin").addEventListener("click", function () {
+    role = "admin";
+    document.getElementById("role-admin").classList.add("active");
+    document.getElementById("role-member").classList.remove("active");
+    document.getElementById("tabs-admin").style.display = "flex";
+    document.getElementById("tabs-member").style.display = "none";
+    go("admin-list");
+  });
+  document.querySelectorAll("nav.tabs button").forEach(function (b) {
+    b.addEventListener("click", function () { go(b.dataset.view); });
+  });
+
+  /* ---------------- booking flow state ---------------- */
+  var bookStep = "menu";
+  var bookMenuId = null;
+  var bookSlotId = null;
+  var bookDoneId = null;
+  var bookError = "";
+  var cancelConfirmId = null;
+  var rescheduleId = null;
+
+  function resetBookFlow() {
+    bookStep = "menu"; bookMenuId = null; bookSlotId = null; bookDoneId = null; bookError = "";
+    rescheduleId = null;
+  }
+
+  function openSlotsGrouped(excludeSlotId) {
+    var byDate = {};
+    var order = [];
+    state.slots.forEach(function (s) {
+      if (s.status !== "open" && s.id !== excludeSlotId) return;
+      if (slotDateTime(s.date, s.time).getTime() < Date.now() - 60 * 1000) return;
+      if (!byDate[s.date]) { byDate[s.date] = []; order.push(s.date); }
+      byDate[s.date].push(s);
+    });
+    order.sort();
+    return order.map(function (d) { return { date: d, slots: byDate[d] }; });
+  }
+
+  /* ---------------- root render ---------------- */
+  var root = document.getElementById("view-root");
+
+  function render() {
+    if (role === "member") {
+      if (view === "mypage") root.innerHTML = renderMypage();
+      else root.innerHTML = renderBook();
+    } else {
+      if (view === "admin-slots") root.innerHTML = renderAdminSlots();
+      else root.innerHTML = renderAdminList();
+    }
+    bindEvents();
+  }
+
+  /* ---------------- booking views ---------------- */
+  function renderBook() {
+    if (bookStep === "menu") return renderBookMenu();
+    if (bookStep === "slot") return renderBookSlot();
+    if (bookStep === "form") return renderBookForm();
+    return renderBookDone();
+  }
+
+  function renderBookMenu() {
+    var html = '<h1>面談を予約する</h1><p class="page-lead">メニューを選んで、空いている日時からご予約いただけます。</p>';
+    html += '<div class="menu-grid">';
+    state.menus.forEach(function (m) {
+      html += '<div class="card menu-card">' +
+        '<div class="duration">' + m.duration + '分</div>' +
+        '<h3>' + esc(m.name) + '</h3>' +
+        '<p>' + esc(m.desc) + '</p>' +
+        '<div class="fee">' + yen(m.fee) + '</div>' +
+        '<button class="btn btn-primary btn-block" data-act="pick-menu" data-id="' + m.id + '">この内容で予約する</button>' +
+        '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function renderBookSlot() {
+    var menu = findMenu(bookMenuId);
+    var groups = openSlotsGrouped(null);
+    var html = '<button class="back-link" data-act="back-menu">← メニュー選択に戻る</button>';
+    html += '<h1>日時を選ぶ</h1>';
+    html += '<div class="chip-select">選択中: <strong>' + esc(menu.name) + '</strong> / ' + menu.duration + '分 / ' + yen(menu.fee) + '</div>';
+    if (!groups.length) {
+      html += '<div class="card empty">現在ご案内できる空き枠がありません。日を改めてご確認ください。</div>';
+      return html;
+    }
+    groups.forEach(function (g) {
+      html += '<div class="day-block"><div class="day-label">' + fmtDate(g.date) + '</div><div class="slot-row">';
+      g.slots.forEach(function (s) {
+        html += '<button class="slot-btn" data-act="pick-slot" data-id="' + s.id + '">' + s.time + '</button>';
+      });
+      html += '</div></div>';
+    });
+    return html;
+  }
+
+  function renderBookForm() {
+    var menu = findMenu(bookMenuId);
+    var slot = findSlot(bookSlotId);
+    var html = '<button class="back-link" data-act="back-slot">← 日時選択に戻る</button>';
+    html += '<h1>予約内容の確認とお支払い</h1>';
+    html += '<div class="card">';
+    html += '<div class="summary-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);"><span style="color:var(--ink-soft);">メニュー</span><strong>' + esc(menu.name) + '</strong></div>';
+    html += '<div class="summary-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);"><span style="color:var(--ink-soft);">日時</span><strong>' + fmtDate(slot.date) + ' ' + slot.time + '〜</strong></div>';
+    html += '<div class="summary-row" style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:var(--ink-soft);">お支払い金額</span><strong style="font-family:var(--font-mono);font-size:18px;color:var(--accent-strong);">' + yen(menu.fee) + '</strong></div>';
+    html += '</div>';
+
+    html += '<div class="card">';
+    html += '<h2>ご連絡先</h2>';
+    html += '<div class="field"><label for="f-name">お名前</label><input id="f-name" type="text" placeholder="山田 太郎"></div>';
+    html += '<div class="field"><label for="f-email">メールアドレス</label><input id="f-email" type="email" placeholder="you@example.com"></div>';
+
+    html += '<div class="panel-2">';
+    html += '<div class="plabel">お支払い(デモ)</div>';
+    html += '<div class="field"><label for="f-card">カード番号</label><input id="f-card" type="text" inputmode="numeric" placeholder="4242 4242 4242 4242"></div>';
+    html += '<div class="field-row">';
+    html += '<div class="field"><label for="f-exp">有効期限(MM/YY)</label><input id="f-exp" type="text" placeholder="08/29"></div>';
+    html += '<div class="field"><label for="f-cvc">セキュリティコード</label><input id="f-cvc" type="text" inputmode="numeric" placeholder="123"></div>';
+    html += '</div>';
+    html += '<div class="note-box">これはデモの決済フォームです。実際のカード情報は送信・保存されません。ダミーの値をご入力ください。</div>';
+    html += '</div>';
+
+    if (bookError) html += '<div class="field-error">' + esc(bookError) + '</div>';
+    html += '<button class="btn btn-primary btn-block" data-act="confirm-book">' + yen(menu.fee) + ' を支払って予約を確定する</button>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderBookDone() {
+    var res = findReservation(bookDoneId);
+    var menu = findMenu(res.menuId);
+    var html = '<h1>予約が確定しました</h1><p class="page-lead">確認メールをお送りする想定の画面です(デモのため実際の送信はありません)。</p>';
+    html += ticketMarkup(res, menu);
+    html += '<div class="res-actions">';
+    html += '<button class="btn btn-primary" data-act="goto-mypage">マイページで確認する</button>';
+    html += '<button class="btn btn-ghost" data-act="book-another">もう一件予約する</button>';
+    html += '</div>';
+    return html;
+  }
+
+  function ticketMarkup(res, menu) {
+    var cancelled = res.status === "cancelled";
+    var html = '<div class="ticket-view">';
+    html += '<div class="ticket-view-main">';
+    html += '<div class="ticket-view-row"><div class="ticket-field"><span class="label">Consultation</span><span class="value big">' + esc(menu ? menu.name : "") + '</span></div></div>';
+    html += '<div class="ticket-view-row">';
+    html += '<div><span class="label">Date</span><span class="value">' + fmtDate(res.date) + '</span></div>';
+    html += '<div><span class="label">Time</span><span class="value">' + res.time + '〜</span></div>';
+    html += '</div>';
+    html += '<div class="ticket-view-row">';
+    html += '<div><span class="label">Fee</span><span class="value">' + yen(res.fee) + '</span></div>';
+    html += '<div><span class="label">Payment</span><span class="value">Card •••• ' + esc(res.cardLast4 || "----") + '</span></div>';
+    html += '</div>';
+    html += '<div class="ticket-view-row"><div><span class="label">Name</span><span class="value">' + esc(res.name) + '</span></div></div>';
+    html += '</div>';
+    html += '<div class="ticket-divider"></div>';
+    html += '<div class="ticket-view-stub"><div class="stamp ' + (cancelled ? "cancel" : "ok") + '">' + (cancelled ? "取消" : "確定") + '</div><span class="no">No. ' + esc(res.no) + '</span></div>';
+    html += '</div>';
+    return html;
+  }
+
+  /* ---------------- mypage ---------------- */
+  function renderMypage() {
+    var html = '<h1>マイページ</h1><p class="page-lead">ご予約の確認・日程変更・キャンセルができます。</p>';
+    var list = state.reservations.slice().sort(function (a, b) { return slotDateTime(a.date, a.time) - slotDateTime(b.date, b.time); });
+    if (!list.length) { html += '<div class="card empty">まだ予約がありません。</div>'; return html; }
+
+    list.forEach(function (res) {
+      var menu = findMenu(res.menuId);
+      var changeable = isChangeable(res);
+      html += '<div class="card">';
+      html += '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;">';
+      html += '<div><div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);margin-bottom:4px;">No. ' + esc(res.no) + '</div>';
+      html += '<h3 style="margin:0 0 4px;font-size:16px;">' + esc(menu ? menu.name : "") + '</h3>';
+      html += '<div style="font-size:13.5px;color:var(--ink-soft);">' + fmtDate(res.date) + ' ' + res.time + '〜 / ' + yen(res.fee) + '</div></div>';
+      html += '<span class="badge ' + (res.status === "confirmed" ? "confirmed" : "cancelled") + '">' + (res.status === "confirmed" ? "予約確定" : "キャンセル済み") + '</span>';
+      html += '</div>';
+
+      if (res.status === "confirmed" && !changeable && rescheduleId !== res.id) {
+        html += '<div class="note-box" style="margin-top:12px;">変更・キャンセルの受付期限(面談開始の3時間前)を過ぎています。お急ぎの場合はお問い合わせください。</div>';
+      }
+
+      if (res.status === "confirmed" && changeable && rescheduleId !== res.id) {
+        html += '<div class="res-actions">';
+        html += '<button class="btn btn-ghost btn-sm" data-act="start-reschedule" data-id="' + res.id + '">日程を変更する</button>';
+        html += '<button class="btn btn-warn btn-sm" data-act="start-cancel" data-id="' + res.id + '">キャンセルする</button>';
+        html += '</div>';
+      }
+
+      if (cancelConfirmId === res.id) {
+        html += '<div class="confirm-box">この予約をキャンセルします。よろしいですか？<div class="row">' +
+          '<button class="btn btn-warn btn-sm" data-act="do-cancel" data-id="' + res.id + '">はい、キャンセルする</button>' +
+          '<button class="btn btn-ghost btn-sm" data-act="stop-cancel">戻る</button></div></div>';
+      }
+
+      if (rescheduleId === res.id) {
+        html += renderRescheduleBlock(res);
+      }
+      html += '</div>';
+    });
+    return html;
+  }
+
+  function renderRescheduleBlock(res) {
+    var groups = openSlotsGrouped(res.slotId);
+    var html = '<div class="panel-2"><div class="plabel">新しい日時を選ぶ</div>';
+    if (!groups.length) {
+      html += '<div class="empty" style="padding:16px;">選べる空き枠がありません。</div>';
+    } else {
+      groups.forEach(function (g) {
+        html += '<div class="day-block"><div class="day-label">' + fmtDate(g.date) + '</div><div class="slot-row">';
+        g.slots.forEach(function (s) {
+          var isCurrent = s.id === res.slotId;
+          html += '<button class="slot-btn" data-act="do-reschedule" data-res="' + res.id + '" data-slot="' + s.id + '">' + s.time + (isCurrent ? "(現在)" : "") + '</button>';
+        });
+        html += '</div></div>';
+      });
+    }
+    html += '<button class="btn btn-ghost btn-sm" data-act="stop-reschedule" style="margin-top:6px;">やめる</button>';
+    html += '</div>';
+    return html;
+  }
+
+  /* ---------------- admin views ---------------- */
+  function renderAdminList() {
+    var confirmed = state.reservations.filter(function (r) { return r.status === "confirmed"; });
+    var cancelled = state.reservations.filter(function (r) { return r.status === "cancelled"; });
+    var total = confirmed.reduce(function (s, r) { return s + r.fee; }, 0);
+    var today = todayStr();
+    var todayCount = confirmed.filter(function (r) { return r.date === today; }).length;
+
+    var html = '<h1>予約一覧</h1><p class="page-lead">面談担当者向けの管理画面です。</p>';
+    html += '<div class="stat-grid">';
+    html += statCard(confirmed.length, "予約件数");
+    html += statCard(yen(total), "決済済み金額");
+    html += statCard(cancelled.length, "キャンセル件数");
+    html += statCard(todayCount, "本日の面談");
+    html += '</div>';
+
+    var list = state.reservations.slice().sort(function (a, b) { return slotDateTime(b.date, b.time) - slotDateTime(a.date, a.time); });
+    if (!list.length) { html += '<div class="card empty">まだ予約がありません。</div>'; return html; }
+
+    html += '<div class="table-wrap"><table class="reg-table"><thead><tr>' +
+      '<th>No.</th><th>メニュー</th><th>日時</th><th>お名前</th><th>連絡先</th><th>金額</th><th>状態</th><th></th></tr></thead><tbody>';
+    list.forEach(function (res) {
+      var menu = findMenu(res.menuId);
+      html += '<tr>';
+      html += '<td style="font-family:var(--font-mono);">' + esc(res.no) + '</td>';
+      html += '<td>' + esc(menu ? menu.name : "") + '</td>';
+      html += '<td style="font-family:var(--font-mono);white-space:nowrap;">' + fmtDate(res.date) + ' ' + res.time + '</td>';
+      html += '<td>' + esc(res.name) + '</td>';
+      html += '<td>' + esc(res.email) + '</td>';
+      html += '<td style="font-family:var(--font-mono);">' + yen(res.fee) + '</td>';
+      html += '<td><span class="badge ' + (res.status === "confirmed" ? "confirmed" : "cancelled") + '">' + (res.status === "confirmed" ? "確定" : "キャンセル") + '</span></td>';
+      html += '<td>' + (res.status === "confirmed"
+        ? '<button class="row-btn" data-act="admin-cancel" data-id="' + res.id + '">キャンセル扱いにする</button>'
+        : '') + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  function statCard(num, label) {
+    return '<div class="stat"><div class="num">' + num + '</div><div class="label">' + label + '</div></div>';
+  }
+
+  function renderAdminSlots() {
+    var html = '<h1>空き枠設定</h1><p class="page-lead">面談として受け付ける時間帯を管理します。緑色が予約可能な枠です。</p>';
+
+    var byDate = {};
+    var order = [];
+    state.slots.forEach(function (s) {
+      if (!byDate[s.date]) { byDate[s.date] = []; order.push(s.date); }
+      byDate[s.date].push(s);
+    });
+    order.sort();
+
+    html += '<div class="card">';
+    order.forEach(function (d) {
+      var slots = byDate[d].slice().sort(function (a, b) { return a.time < b.time ? -1 : 1; });
+      html += '<div class="slot-admin-day"><div class="day-label">' + fmtDate(d) + '</div>';
+      slots.forEach(function (s) {
+        var label = s.time + (s.status === "booked" ? " 予約済" : s.status === "blocked" ? " 休止" : "");
+        html += '<button class="slot-chip ' + s.status + '" data-act="toggle-slot" data-id="' + s.id + '"' + (s.status === "booked" ? " disabled" : "") + '>' + label + '</button>';
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+
+    html += '<div class="card">';
+    html += '<h2>枠を追加</h2>';
+    html += '<div class="field-row">';
+    html += '<div class="field"><label for="a-date">日付</label><input id="a-date" type="date" min="' + todayStr() + '"></div>';
+    html += '<div class="field"><label for="a-time">時刻</label><input id="a-time" type="time" step="900"></div>';
+    html += '</div>';
+    html += '<button class="btn btn-primary" data-act="add-slot">この枠を追加する</button>';
+    html += '</div>';
+    return html;
+  }
+
+  /* ---------------- events ---------------- */
+  function bindEvents() {
+    root.querySelectorAll("[data-act]").forEach(function (el) {
+      el.addEventListener("click", function () { handleAction(el.dataset); });
+    });
+  }
+
+  function handleAction(ds) {
+    if (ds.act === "pick-menu") { bookMenuId = ds.id; bookStep = "slot"; render(); return; }
+    if (ds.act === "back-menu") { bookStep = "menu"; bookMenuId = null; render(); return; }
+    if (ds.act === "pick-slot") { bookSlotId = ds.id; bookStep = "form"; bookError = ""; render(); return; }
+    if (ds.act === "back-slot") { bookStep = "slot"; bookSlotId = null; render(); return; }
+
+    if (ds.act === "confirm-book") {
+      var name = (document.getElementById("f-name").value || "").trim();
+      var email = (document.getElementById("f-email").value || "").trim();
+      var card = (document.getElementById("f-card").value || "").trim();
+      var exp = (document.getElementById("f-exp").value || "").trim();
+      var cvc = (document.getElementById("f-cvc").value || "").trim();
+      if (!name || !email || email.indexOf("@") === -1) { bookError = "お名前とメールアドレスをご確認ください。"; render(); return; }
+      if (!card || !exp || !cvc) { bookError = "お支払い情報(デモ用のダミー値)をすべてご入力ください。"; render(); return; }
+
+      var menu = findMenu(bookMenuId);
+      var slot = findSlot(bookSlotId);
+      if (!slot || slot.status !== "open") { bookError = "この枠は既に埋まっています。日時を選び直してください。"; bookStep = "slot"; render(); return; }
+
+      state.seq += 1;
+      var digits = card.replace(/\D/g, "");
+      var res = {
+        id: uid("r"), no: String(state.seq).padStart ? String(state.seq).padStart(5, "0") : ("0000" + state.seq).slice(-5),
+        menuId: menu.id, slotId: slot.id, date: slot.date, time: slot.time,
+        name: name, email: email, fee: menu.fee, cardLast4: digits.slice(-4) || "----",
+        status: "confirmed", createdAt: Date.now()
+      };
+      state.reservations.push(res);
+      slot.status = "booked";
+      saveState();
+      bookDoneId = res.id; bookStep = "done"; bookError = "";
+      render();
+      return;
+    }
+
+    if (ds.act === "goto-mypage") { go("mypage"); return; }
+    if (ds.act === "book-another") { resetBookFlow(); render(); return; }
+
+    if (ds.act === "start-cancel") { cancelConfirmId = ds.id; render(); return; }
+    if (ds.act === "stop-cancel") { cancelConfirmId = null; render(); return; }
+    if (ds.act === "do-cancel") {
+      var r = findReservation(ds.id);
+      if (r) { r.status = "cancelled"; freeSlot(r.slotId); saveState(); }
+      cancelConfirmId = null; render(); return;
+    }
+
+    if (ds.act === "start-reschedule") { rescheduleId = ds.id; cancelConfirmId = null; render(); return; }
+    if (ds.act === "stop-reschedule") { rescheduleId = null; render(); return; }
+    if (ds.act === "do-reschedule") {
+      var res2 = findReservation(ds.res);
+      var newSlot = findSlot(ds.slot);
+      if (res2 && newSlot && (newSlot.status === "open" || newSlot.id === res2.slotId)) {
+        freeSlot(res2.slotId);
+        res2.slotId = newSlot.id; res2.date = newSlot.date; res2.time = newSlot.time;
+        newSlot.status = "booked";
+        saveState();
+      }
+      rescheduleId = null; render(); return;
+    }
+
+    if (ds.act === "admin-cancel") {
+      var r2 = findReservation(ds.id);
+      if (r2) { r2.status = "cancelled"; freeSlot(r2.slotId); saveState(); }
+      render(); return;
+    }
+
+    if (ds.act === "toggle-slot") {
+      var s2 = findSlot(ds.id);
+      if (s2 && s2.status !== "booked") { s2.status = s2.status === "open" ? "blocked" : "open"; saveState(); }
+      render(); return;
+    }
+    if (ds.act === "add-slot") {
+      var dEl = document.getElementById("a-date"), tEl = document.getElementById("a-time");
+      var dv = dEl.value, tv = tEl.value;
+      if (!dv || !tv) return;
+      var id = dv + "-" + tv.replace(":", "");
+      if (!findSlot(id)) { state.slots.push({ id: id, date: dv, time: tv, status: "open" }); saveState(); }
+      render(); return;
+    }
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

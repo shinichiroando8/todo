@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>予約チケット — 面談予約・支払いアプリ</title>
+<style>
+  :root {
+    --bg: #E7EAE2;
+    --surface: #FFFFFF;
+    --surface-2: #DEE3D8;
+    --ink: #1B2420;
+    --ink-soft: #57624F;
+    --ink-faint: #808B76;
+    --accent: #2F6B4F;
+    --accent-strong: #234F3A;
+    --accent-ink: #F3F7EF;
+    --gold: #8E6B2A;
+    --line: rgba(27, 36, 32, 0.16);
+    --line-strong: rgba(27, 36, 32, 0.3);
+    --shadow: 0 18px 40px -22px rgba(20, 30, 22, 0.35);
+    --font-display: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", "Segoe UI", sans-serif;
+    --font-body: "Hiragino Sans", "Yu Gothic", Meiryo, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0F1B15;
+    --surface: #152A20;
+    --surface-2: #1C3627;
+    --ink: #E9EFE8;
+    --ink-soft: #A9BBA0;
+    --ink-faint: #728069;
+    --accent: #57D69B;
+    --accent-strong: #7EE3B2;
+    --accent-ink: #0B1710;
+    --gold: #D8B268;
+    --line: rgba(233, 239, 232, 0.16);
+    --line-strong: rgba(233, 239, 232, 0.32);
+    --shadow: 0 18px 44px -20px rgba(0, 0, 0, 0.6);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F1B15;
+      --surface: #152A20;
+      --surface-2: #1C3627;
+      --ink: #E9EFE8;
+      --ink-soft: #A9BBA0;
+      --ink-faint: #728069;
+      --accent: #57D69B;
+      --accent-strong: #7EE3B2;
+      --accent-ink: #0B1710;
+      --gold: #D8B268;
+      --line: rgba(233, 239, 232, 0.16);
+      --line-strong: rgba(233, 239, 232, 0.32);
+      --shadow: 0 18px 44px -20px rgba(0, 0, 0, 0.6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    line-height: 1.75;
+    overflow-x: hidden;
+  }
+
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .wrap {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 clamp(20px, 5vw, 48px);
+  }
+
+  /* ---------- header ---------- */
+  header.site {
+    padding: 22px 0 6px;
+  }
+  .site-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 19px;
+    letter-spacing: 0.02em;
+  }
+  .brand .mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    transform: rotate(-6deg);
+  }
+  .brand .sub {
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    letter-spacing: 0.02em;
+  }
+  nav.site-nav {
+    display: flex;
+    gap: clamp(14px, 3vw, 26px);
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+  nav.site-nav a { text-decoration: none; border-bottom: 1px solid transparent; }
+  nav.site-nav a:hover { border-color: var(--line-strong); color: var(--ink); }
+
+  /* ---------- hero ---------- */
+  .hero {
+    padding: clamp(36px, 7vw, 72px) 0 clamp(28px, 5vw, 56px);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: clamp(28px, 5vw, 56px);
+    align-items: center;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-strong);
+    margin: 0 0 18px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 16px;
+    height: 1px;
+    background: var(--accent-strong);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(30px, 4.6vw, 46px);
+    line-height: 1.28;
+    letter-spacing: -0.01em;
+    margin: 0 0 20px;
+    text-wrap: balance;
+  }
+  h1 em {
+    font-style: normal;
+    color: var(--accent-strong);
+  }
+  .hero p.lead {
+    font-size: clamp(15px, 1.5vw, 17px);
+    color: var(--ink-soft);
+    max-width: 46ch;
+    margin: 0 0 30px;
+  }
+  .hero-ctas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 26px;
+  }
+  .btn {
+    font-family: var(--font-body);
+    font-size: 14.5px;
+    font-weight: 700;
+    padding: 13px 24px;
+    border-radius: 5px;
+    text-decoration: none;
+    display: inline-block;
+    border: 1px solid transparent;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    box-shadow: var(--shadow);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+  .hero-note {
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* ---------- ticket card ---------- */
+  .ticket {
+    position: relative;
+    background: var(--surface);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    display: grid;
+    grid-template-columns: 1fr 108px;
+    overflow: visible;
+    isolation: isolate;
+  }
+  .ticket-main {
+    padding: 26px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .ticket-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .ticket-field .label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .ticket-field .value {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .ticket-field .value.big {
+    font-size: clamp(22px, 3vw, 28px);
+    font-weight: 700;
+  }
+  .ticket-divider {
+    position: relative;
+    border-left: 2px dashed var(--line-strong);
+  }
+  .ticket-divider::before,
+  .ticket-divider::after {
+    content: "";
+    position: absolute;
+    left: -14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg);
+  }
+  .ticket-divider::before { top: -14px; }
+  .ticket-divider::after { bottom: -14px; }
+  .ticket-stub {
+    padding: 26px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    text-align: center;
+  }
+  .stamp {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: rotate(-10deg);
+  }
+  .ticket-stub .no {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-faint);
+    writing-mode: vertical-rl;
+    letter-spacing: 0.15em;
+  }
+  .ticket-status {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- section shell ---------- */
+  section { padding: clamp(40px, 7vw, 76px) 0; }
+  .section-head { max-width: 60ch; margin-bottom: clamp(28px, 4vw, 40px); }
+  .section-head .eyebrow { margin-bottom: 14px; }
+  h2 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(24px, 3.2vw, 32px);
+    line-height: 1.35;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .section-head p {
+    color: var(--ink-soft);
+    font-size: 15px;
+    margin: 0;
+  }
+
+  /* ---------- audience chips ---------- */
+  .audience { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: clamp(24px, 4vw, 34px) 0; }
+  .audience-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .audience-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+  .chip-list { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip {
+    font-size: 13px;
+    padding: 7px 14px 7px 12px;
+    border: 1px dashed var(--line-strong);
+    border-radius: 999px;
+    color: var(--ink-soft);
+    position: relative;
+  }
+  .chip::before {
+    content: "";
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 7px;
+    vertical-align: middle;
+  }
+
+  /* ---------- problem section ---------- */
+  .problem-list { display: grid; gap: 14px; }
+  .problem-item {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 16px;
+    align-items: start;
+    padding: 18px 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .problem-item .glyph {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--ink-faint);
+    border: 1px solid var(--line-strong);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .problem-item .glyph::after,
+  .problem-item .glyph::before {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 1.6px;
+    background: var(--ink-faint);
+  }
+  .problem-item .glyph::before { transform: rotate(45deg); }
+  .problem-item .glyph::after { transform: rotate(-45deg); }
+  .problem-item h3 { margin: 0 0 4px; font-size: 15.5px; font-weight: 700; }
+  .problem-item p { margin: 0; color: var(--ink-soft); font-size: 14px; }
+
+  /* ---------- solution steps ---------- */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .step {
+    padding: 26px 22px;
+    position: relative;
+  }
+  .step + .step { border-left: 1px dashed var(--line-strong); }
+  .step .step-no {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .step h3 { margin: 0 0 8px; font-size: 16.5px; font-weight: 700; }
+  .step p { margin: 0; color: var(--ink-soft); font-size: 13.8px; }
+
+  /* ---------- features receipt ---------- */
+  .receipt {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: clamp(20px, 3vw, 30px) clamp(20px, 4vw, 34px);
+  }
+  .receipt-title {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-bottom: 1px dashed var(--line-strong);
+    padding-bottom: 14px;
+    margin-bottom: 4px;
+  }
+  .feature-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 20px;
+    padding: 18px 0;
+    border-bottom: 1px dashed var(--line);
+    align-items: baseline;
+  }
+  .feature-row:last-child { border-bottom: none; }
+  .feature-row h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .feature-row .tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--gold);
+    align-self: start;
+    padding-top: 3px;
+    white-space: nowrap;
+  }
+  .feature-row p {
+    grid-column: 1 / -1;
+    margin: 4px 0 0;
+    color: var(--ink-soft);
+    font-size: 13.8px;
+    max-width: 62ch;
+  }
+
+  /* ---------- cta footer ---------- */
+  .cta-block {
+    background: var(--surface-2);
+    border-radius: 14px;
+    padding: clamp(32px, 6vw, 54px) clamp(24px, 6vw, 54px);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .cta-block h2 { margin-bottom: 8px; }
+  .cta-block p { margin: 0; color: var(--ink-soft); font-size: 14.5px; max-width: 44ch; }
+  .cta-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+  footer.site {
+    padding: 34px 0 48px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+  }
+  footer.site .brand { font-size: 13px; }
+  footer.site .brand .mark { width: 20px; height: 20px; font-size: 10px; }
+
+  @media (max-width: 760px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .ticket { grid-template-columns: 1fr; }
+    .ticket-divider { border-left: none; border-top: 1px dashed var(--line-strong); }
+    .ticket-divider::before, .ticket-divider::after { top: -14px; left: auto; }
+    .ticket-divider::before { left: -14px; }
+    .ticket-divider::after { left: auto; right: -14px; top: -14px; bottom: auto; }
+    .ticket-stub { flex-direction: row; justify-content: space-between; }
+    .ticket-stub .no { writing-mode: horizontal-tb; }
+    .steps { grid-template-columns: 1fr; }
+    .step + .step { border-left: none; border-top: 1px dashed var(--line-strong); }
+    nav.site-nav { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap site-head">
+    <div class="brand">
+      <span class="mark">ヨ</span>
+      予約チケット
+      <span class="sub">面談予約・支払いアプリ</span>
+    </div>
+    <nav class="site-nav">
+      <a href="#problem">課題</a>
+      <a href="#solution">解決方法</a>
+      <a href="#features">できること</a>
+      <a href="#contact">問い合わせ</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">面談を受ける方へ</p>
+        <h1>予約も、変更も、支払いも。<br><em>一枚のチケット</em>で完結する。</h1>
+        <p class="lead">面談を受ける方のための予約・決済アプリです。ホームページから日程の予約とキャンセルができ、支払いはクレジットカードでその場に完了します。電話のやり取りも、後日の振込もいりません。</p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary" href="#contact">サービスについて相談する</a>
+          <a class="btn btn-ghost" href="#features">できることを見る</a>
+        </div>
+        <p class="hero-note">日程調整・キャンセル・支払いを、ひとつの画面で。</p>
+      </div>
+
+      <div class="ticket" aria-label="予約チケットのイメージ">
+        <div class="ticket-main">
+          <div class="ticket-row">
+            <div class="ticket-field">
+              <span class="label">Consultation</span>
+              <span class="value big">高ストレス相談</span>
+            </div>
+          </div>
+          <div class="ticket-row">
+            <div class="ticket-field">
+              <span class="label">Date</span>
+              <span class="value">2026-08-03</span>
+            </div>
+            <div class="ticket-field">
+              <span class="label">Time</span>
+              <span class="value">19:00</span>
+            </div>
+          </div>
+          <div class="ticket-row">
+            <div class="ticket-field">
+              <span class="label">Fee</span>
+              <span class="value">¥2,000</span>
+            </div>
+            <div class="ticket-field">
+              <span class="label">Payment</span>
+              <span class="value">Visa •••• 4821</span>
+            </div>
+          </div>
+        </div>
+        <div class="ticket-divider"></div>
+        <div class="ticket-stub">
+          <div class="stamp">確定</div>
+          <span class="no">No. 00184</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="audience">
+    <div class="wrap audience-row">
+      <span class="audience-label">こんな面談を受ける方に</span>
+      <div class="chip-list">
+        <span class="chip">カウンセリング</span>
+        <span class="chip">コーチング</span>
+        <span class="chip">オンライン診療・相談</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="problem">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">課題</p>
+        <h2>予約・キャンセル・支払いが、ばらばらに面倒。</h2>
+        <p>面談を受ける方の多くが、日程調整から支払いまでの間で足止めを感じています。</p>
+      </div>
+      <div class="problem-list">
+        <div class="problem-item">
+          <span class="glyph" aria-hidden="true"></span>
+          <div>
+            <h3>日程調整が電話・メールの往復になる</h3>
+            <p>候補日を何度もやり取りするうちに時間が経ち、予約自体を諦めてしまうことも。</p>
+          </div>
+        </div>
+        <div class="problem-item">
+          <span class="glyph" aria-hidden="true"></span>
+          <div>
+            <h3>キャンセルの連絡が行き違う</h3>
+            <p>電話がつながらない、メールに気づかれないまま、当日の無断キャンセルにつながる。</p>
+          </div>
+        </div>
+        <div class="problem-item">
+          <span class="glyph" aria-hidden="true"></span>
+          <div>
+            <h3>支払いが都度の請求・振込になる</h3>
+            <p>面談のたびに請求書を作り、入金を待って確認する。双方にとって手間が残る。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="solution">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">解決方法</p>
+        <h2>ホームページ一つで、予約から支払いまで完了。</h2>
+        <p>面談を受ける方が、自分のタイミングで予約・変更・支払いを済ませられます。</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <span class="step-no">STEP 1 — 予約</span>
+          <h3>空き時間を選んで予約</h3>
+          <p>ホームページのカレンダーから空いている日時を選ぶだけで、その場で予約が確定します。</p>
+        </div>
+        <div class="step">
+          <span class="step-no">STEP 2 — 変更・キャンセル</span>
+          <h3>自分で日程を調整</h3>
+          <p>都合が変わったら、マイページからいつでも変更・キャンセルが可能です。連絡の行き違いが起きません。</p>
+        </div>
+        <div class="step">
+          <span class="step-no">STEP 3 — 支払い</span>
+          <h3>クレジットカードで決済</h3>
+          <p>予約と同時にカード決済が完了。領収書も自動で発行されるので、後日の請求対応が不要です。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">できること</p>
+        <h2>面談の予約体験に必要な機能を、ひとつに。</h2>
+      </div>
+      <div class="receipt">
+        <div class="receipt-title">主な機能</div>
+        <div class="feature-row">
+          <h3>オンライン予約カレンダー</h3>
+          <span class="tag">BOOKING</span>
+          <p>空き状況をリアルタイムに表示し、選んだその場で予約が確定します。</p>
+        </div>
+        <div class="feature-row">
+          <h3>セルフキャンセル・日程変更</h3>
+          <span class="tag">RESCHEDULE</span>
+          <p>期限内であれば、利用者自身がマイページから変更・取消を行えます。</p>
+        </div>
+        <div class="feature-row">
+          <h3>クレジットカード決済</h3>
+          <span class="tag">PAYMENT</span>
+          <p>主要ブランドに対応し、予約と同時に決済が完了します。振込確認は不要です。</p>
+        </div>
+        <div class="feature-row">
+          <h3>キャンセルポリシー設定</h3>
+          <span class="tag">POLICY</span>
+          <p>面談ごとに変更・キャンセルの期限や返金率を設定できます。</p>
+        </div>
+        <div class="feature-row">
+          <h3>自動リマインド通知</h3>
+          <span class="tag">REMINDER</span>
+          <p>面談前にメールで日時をお知らせし、当日の無断キャンセルを防ぎます。</p>
+        </div>
+        <div class="feature-row">
+          <h3>領収書の自動発行</h3>
+          <span class="tag">RECEIPT</span>
+          <p>支払い完了後、領収書が自動で発行され、そのまま保存・提出できます。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact">
+    <div class="wrap">
+      <div class="cta-block">
+        <div>
+          <h2>予約チケットについて、話を聞いてみませんか。</h2>
+          <p>面談の予約・キャンセル・支払いをまとめたいと考えている方へ、企画の詳細をご案内します。</p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary" href="#">サービスについて相談する</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site">
+  <div class="wrap" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; width:100%;">
+    <div class="brand"><span class="mark">ヨ</span>予約チケット</div>
+    <span>面談予約・支払いアプリ — 企画コンセプト</span>
+  </div>
+</footer>
+
+</body>
+</html>
