@@ -94,10 +94,20 @@
   .field { margin-bottom: 16px; }
   .field label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 6px; }
   .field input { width: 100%; padding: 11px 12px; border: 1px solid var(--line-strong); border-radius: 7px; font-size: 14px; font-family: inherit; background: var(--surface); color: var(--ink); }
+  .field input:focus { outline: none; border-color: var(--accent); }
+  .field input.invalid { border-color: var(--warn); }
+  .field input.valid { border-color: var(--good); }
   .field .hint { font-size: 11.5px; color: var(--ink-faint); margin-top: 5px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   @media (max-width: 560px) { .field-row { grid-template-columns: 1fr; } }
   .field-error { color: var(--warn); font-size: 12.5px; margin: -4px 0 16px; }
+
+  .card-number-row { position: relative; }
+  .card-brand-badge {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+    color: var(--ink-faint); margin-top: 6px; display: block; min-height: 14px;
+  }
+  .card-brand-badge.ok { color: var(--good); }
 
   .panel-2 { background: var(--surface-2); border-radius: 10px; padding: 18px 20px; margin: 18px 0; }
   .panel-2 .plabel { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--ink-faint); margin-bottom: 12px; text-transform: uppercase; }
@@ -236,6 +246,50 @@
   }
   function uid(prefix) { return prefix + "-" + Math.random().toString(36).slice(2, 8); }
 
+  /* ---------------- card validation (client-side check only; no charge is made) ---------------- */
+  function luhnValid(digits) {
+    if (!digits) return false;
+    var sum = 0, alt = false;
+    for (var i = digits.length - 1; i >= 0; i--) {
+      var n = digits.charCodeAt(i) - 48;
+      if (n < 0 || n > 9) return false;
+      if (alt) { n *= 2; if (n > 9) n -= 9; }
+      sum += n; alt = !alt;
+    }
+    return sum % 10 === 0;
+  }
+  function detectBrand(digits) {
+    if (/^4/.test(digits)) return "visa";
+    if (/^(5[1-5]|2[2-7])/.test(digits)) return "mastercard";
+    if (/^3[47]/.test(digits)) return "amex";
+    if (/^35/.test(digits)) return "jcb";
+    return "";
+  }
+  function brandLabel(b) {
+    return { visa: "Visa", mastercard: "Mastercard", amex: "American Express", jcb: "JCB" }[b] || "";
+  }
+  function brandLen(b) { return b === "amex" ? 15 : 16; }
+  function cvcLen(b) { return b === "amex" ? 4 : 3; }
+  function formatCardNumber(digits, brand) {
+    digits = digits.slice(0, brandLen(brand));
+    if (brand === "amex") {
+      return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter(Boolean).join(" ");
+    }
+    return (digits.match(/.{1,4}/g) || []).join(" ");
+  }
+  function formatExpiry(raw) {
+    var digits = raw.replace(/\D/g, "").slice(0, 4);
+    return digits.length >= 3 ? digits.slice(0, 2) + "/" + digits.slice(2) : digits;
+  }
+  function expiryValid(mmYY) {
+    var m = /^(\d{2})\/(\d{2})$/.exec(mmYY);
+    if (!m) return false;
+    var month = parseInt(m[1], 10), year = 2000 + parseInt(m[2], 10);
+    if (month < 1 || month > 12) return false;
+    var expEnd = new Date(year, month, 0, 23, 59, 59);
+    return expEnd.getTime() >= Date.now();
+  }
+
   function generateDefaultSlots() {
     var slots = [];
     var base = new Date();
@@ -262,12 +316,12 @@
       reservations: [
         {
           id: uid("r"), no: "00001", menuId: "m1", slotId: slots[4].id, date: slots[4].date, time: slots[4].time,
-          name: "田中 花子", email: "hanako@example.com", fee: 2000, cardLast4: "4242",
+          name: "田中 花子", email: "hanako@example.com", fee: 2000, cardBrand: "Visa", cardLast4: "4242",
           status: "confirmed", createdAt: Date.now()
         },
         {
           id: uid("r"), no: "00002", menuId: "m2", slotId: slots[0].id, date: slots[0].date, time: slots[0].time,
-          name: "佐藤 健太", email: "kenta@example.com", fee: 2000, cardLast4: "1881",
+          name: "佐藤 健太", email: "kenta@example.com", fee: 2000, cardBrand: "Mastercard", cardLast4: "4444",
           status: "cancelled", createdAt: Date.now()
         }
       ]
@@ -435,13 +489,14 @@
     html += '<div class="field"><label for="f-email">メールアドレス</label><input id="f-email" type="email" placeholder="you@example.com"></div>';
 
     html += '<div class="panel-2">';
-    html += '<div class="plabel">お支払い(デモ)</div>';
-    html += '<div class="field"><label for="f-card">カード番号</label><input id="f-card" type="text" inputmode="numeric" placeholder="4242 4242 4242 4242"></div>';
+    html += '<div class="plabel">お支払い</div>';
+    html += '<div class="field card-number-row"><label for="f-card">カード番号</label><input id="f-card" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="4242 4242 4242 4242" maxlength="23">' +
+      '<span class="card-brand-badge" id="card-brand-badge"></span></div>';
     html += '<div class="field-row">';
-    html += '<div class="field"><label for="f-exp">有効期限(MM/YY)</label><input id="f-exp" type="text" placeholder="08/29"></div>';
-    html += '<div class="field"><label for="f-cvc">セキュリティコード</label><input id="f-cvc" type="text" inputmode="numeric" placeholder="123"></div>';
+    html += '<div class="field"><label for="f-exp">有効期限(MM/YY)</label><input id="f-exp" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="08/29" maxlength="5"></div>';
+    html += '<div class="field"><label for="f-cvc">セキュリティコード</label><input id="f-cvc" type="text" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4"></div>';
     html += '</div>';
-    html += '<div class="note-box">これはデモの決済フォームです。実際のカード情報は送信・保存されません。ダミーの値をご入力ください。</div>';
+    html += '<div class="note-box">カード番号はチェックサム(下1桁の検算)と有効期限のみをその場で検証します。実際の請求・第三者への送信・保存は行われません。テストには 4242 4242 4242 4242 などをご利用ください。</div>';
     html += '</div>';
 
     if (bookError) html += '<div class="field-error">' + esc(bookError) + '</div>';
@@ -473,7 +528,7 @@
     html += '</div>';
     html += '<div class="ticket-view-row">';
     html += '<div><span class="label">Fee</span><span class="value">' + yen(res.fee) + '</span></div>';
-    html += '<div><span class="label">Payment</span><span class="value">Card •••• ' + esc(res.cardLast4 || "----") + '</span></div>';
+    html += '<div><span class="label">Payment</span><span class="value">' + esc(res.cardBrand || "Card") + ' •••• ' + esc(res.cardLast4 || "----") + '</span></div>';
     html += '</div>';
     html += '<div class="ticket-view-row"><div><span class="label">Name</span><span class="value">' + esc(res.name) + '</span></div></div>';
     html += '</div>';
@@ -628,6 +683,60 @@
     root.querySelectorAll("[data-act]").forEach(function (el) {
       el.addEventListener("click", function () { handleAction(el.dataset); });
     });
+    wireCardFieldsLive();
+  }
+
+  function wireCardFieldsLive() {
+    var cardEl = document.getElementById("f-card");
+    var expEl = document.getElementById("f-exp");
+    var cvcEl = document.getElementById("f-cvc");
+    var badgeEl = document.getElementById("card-brand-badge");
+    if (!cardEl || !expEl || !cvcEl) return;
+
+    cardEl.addEventListener("input", function () {
+      var digits = cardEl.value.replace(/\D/g, "");
+      var brand = detectBrand(digits);
+      cardEl.value = formatCardNumber(digits, brand);
+      cvcEl.setAttribute("maxlength", String(cvcLen(brand)));
+      if (!digits) {
+        badgeEl.textContent = "";
+        badgeEl.className = "card-brand-badge";
+        cardEl.classList.remove("valid", "invalid");
+      } else if (digits.length === brandLen(brand) && luhnValid(digits)) {
+        badgeEl.textContent = brandLabel(brand) + " として認識しました";
+        badgeEl.className = "card-brand-badge ok";
+        cardEl.classList.add("valid"); cardEl.classList.remove("invalid");
+      } else {
+        badgeEl.textContent = brand ? brandLabel(brand) + "・入力を続けてください" : "";
+        badgeEl.className = "card-brand-badge";
+        cardEl.classList.remove("valid", "invalid");
+      }
+    });
+    cardEl.addEventListener("blur", function () {
+      var digits = cardEl.value.replace(/\D/g, "");
+      var brand = detectBrand(digits);
+      if (digits && (digits.length !== brandLen(brand) || !luhnValid(digits))) {
+        cardEl.classList.add("invalid");
+        badgeEl.textContent = "カード番号をご確認ください";
+        badgeEl.className = "card-brand-badge";
+      }
+    });
+
+    expEl.addEventListener("input", function () {
+      expEl.value = formatExpiry(expEl.value);
+      expEl.classList.remove("valid", "invalid");
+    });
+    expEl.addEventListener("blur", function () {
+      if (!expEl.value) return;
+      expEl.classList.toggle("valid", expiryValid(expEl.value));
+      expEl.classList.toggle("invalid", !expiryValid(expEl.value));
+    });
+
+    cvcEl.addEventListener("input", function () {
+      var max = parseInt(cvcEl.getAttribute("maxlength"), 10) || 4;
+      cvcEl.value = cvcEl.value.replace(/\D/g, "").slice(0, max);
+      cvcEl.classList.remove("valid", "invalid");
+    });
   }
 
   function handleAction(ds) {
@@ -639,22 +748,35 @@
     if (ds.act === "confirm-book") {
       var name = (document.getElementById("f-name").value || "").trim();
       var email = (document.getElementById("f-email").value || "").trim();
-      var card = (document.getElementById("f-card").value || "").trim();
+      var cardDigits = (document.getElementById("f-card").value || "").replace(/\D/g, "");
       var exp = (document.getElementById("f-exp").value || "").trim();
       var cvc = (document.getElementById("f-cvc").value || "").trim();
-      if (!name || !email || email.indexOf("@") === -1) { bookError = "お名前とメールアドレスをご確認ください。"; render(); return; }
-      if (!card || !exp || !cvc) { bookError = "お支払い情報(デモ用のダミー値)をすべてご入力ください。"; render(); return; }
+      var brand = detectBrand(cardDigits);
+
+      if (!name) { bookError = "お名前を入力してください。"; render(); return; }
+      if (!email || email.indexOf("@") === -1) { bookError = "メールアドレスをご確認ください。"; render(); return; }
+      if (!cardDigits || cardDigits.length !== brandLen(brand) || !luhnValid(cardDigits)) {
+        bookError = "カード番号をご確認ください。";
+        render(); return;
+      }
+      if (!expiryValid(exp)) {
+        bookError = "有効期限をご確認ください(MM/YY、未来の日付を入力してください)。";
+        render(); return;
+      }
+      if (cvc.length !== cvcLen(brand)) {
+        bookError = "セキュリティコードは" + cvcLen(brand) + "桁で入力してください。";
+        render(); return;
+      }
 
       var menu = findMenu(bookMenuId);
       var slot = findSlot(bookSlotId);
       if (!slot || slot.status !== "open") { bookError = "この枠は既に埋まっています。日時を選び直してください。"; bookStep = "slot"; render(); return; }
 
       state.seq += 1;
-      var digits = card.replace(/\D/g, "");
       var res = {
         id: uid("r"), no: String(state.seq).padStart ? String(state.seq).padStart(5, "0") : ("0000" + state.seq).slice(-5),
         menuId: menu.id, slotId: slot.id, date: slot.date, time: slot.time,
-        name: name, email: email, fee: menu.fee, cardLast4: digits.slice(-4) || "----",
+        name: name, email: email, fee: menu.fee, cardBrand: brandLabel(brand), cardLast4: cardDigits.slice(-4),
         status: "confirmed", createdAt: Date.now()
       };
       state.reservations.push(res);
