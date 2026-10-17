@@ -298,8 +298,10 @@
 
   /* ---------------- data (Supabase) ---------------- */
   var state = { menus: [], slots: [], reservations: [] };
-  var adminState = "login"; // login | notadmin | ok
+  var adminState = "login"; // login | notadmin | mfa-enroll | mfa-verify | ok
   var adminEmail = "";
+  var mfaFactorId = null;   // 登録済みの認証アプリ(TOTP)
+  var mfaEnroll = null;     // 登録中の認証アプリ { id, qr, secret }
   var slotsEnsured = false;
 
   function getMyIds() {
@@ -341,9 +343,35 @@
     var s = await db.auth.getSession();
     if (!s.data.session) { adminState = "login"; return; }
     adminEmail = s.data.session.user.email || "";
-    var a = await db.rpc("yoyaku_is_admin");
+    var a = await db.rpc("yoyaku_is_admin_user");
     if (a.error) throw a.error;
     if (!a.data) { adminState = "notadmin"; return; }
+
+    // 2段階認証: パスワードでのログイン後、認証アプリの6桁コードで本人確認(aal2)を済ませるまで管理画面は開かない
+    var lvl = await db.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (lvl.error) throw lvl.error;
+    if (lvl.data.currentLevel !== "aal2") {
+      if (lvl.data.nextLevel === "aal2") {
+        var fl = await db.auth.mfa.listFactors();
+        if (fl.error) throw fl.error;
+        mfaFactorId = fl.data.totp[0].id;
+        adminState = "mfa-verify";
+      } else {
+        // 認証アプリが未登録 → 登録してもらう(途中でやめた未確認の登録は消してから作り直す)
+        if (!mfaEnroll) {
+          var all = await db.auth.mfa.listFactors();
+          if (all.error) throw all.error;
+          for (var i = 0; i < all.data.all.length; i++) {
+            if (all.data.all[i].status === "unverified") await db.auth.mfa.unenroll({ factorId: all.data.all[i].id });
+          }
+          var en = await db.auth.mfa.enroll({ factorType: "totp", friendlyName: "yoyaku-" + Date.now() });
+          if (en.error) throw en.error;
+          mfaEnroll = { id: en.data.id, qr: en.data.totp.qr_code, secret: en.data.totp.secret };
+        }
+        adminState = "mfa-enroll";
+      }
+      return;
+    }
     adminState = "ok";
     var res = await db.from("yoyaku_reservations").select("*");
     if (res.error) throw res.error;
@@ -457,6 +485,10 @@
       root.innerHTML = renderAdminLogin();
     } else if (adminState === "notadmin") {
       root.innerHTML = renderNotAdmin();
+    } else if (adminState === "mfa-enroll") {
+      root.innerHTML = renderMfaEnroll();
+    } else if (adminState === "mfa-verify") {
+      root.innerHTML = renderMfaVerify();
     } else {
       if (view === "admin-slots") root.innerHTML = renderAdminSlots();
       else root.innerHTML = renderAdminList();
@@ -652,6 +684,31 @@
       '<div class="card"><p style="margin:0 0 14px; font-size:14px;">' + esc(adminEmail) +
       ' には管理権限がありません。管理者のアカウントでログインし直してください。</p>' +
       '<button class="btn btn-ghost" data-act="admin-logout">ログアウト</button></div>';
+  }
+
+  function renderMfaEnroll() {
+    return '<h1>2段階認証の設定</h1>' +
+      '<p class="page-lead">管理画面を守るため、認証アプリ(Google Authenticator、Microsoft Authenticator、1Password など)の登録が必要です。</p>' +
+      '<div class="card">' +
+        '<p style="margin:0 0 12px; font-size:14px;">1. 認証アプリでこのQRコードを読み取ってください。</p>' +
+        '<div style="text-align:center; margin-bottom:12px;"><img alt="2段階認証のQRコード" src="' + esc(mfaEnroll.qr) + '" style="width:200px; height:200px; background:#fff; padding:8px; border-radius:8px;"></div>' +
+        '<p style="margin:0 0 6px; font-size:12.5px; color:var(--ink-soft);">読み取れない場合は、次のキーを手入力してください。</p>' +
+        '<p style="margin:0 0 16px; font-family:var(--font-mono); font-size:13px; word-break:break-all; user-select:all;">' + esc(mfaEnroll.secret) + '</p>' +
+        '<p style="margin:0 0 8px; font-size:14px;">2. アプリに表示された6桁のコードを入力してください。</p>' +
+        '<div class="field"><label for="m-code">認証コード(6桁)</label><input id="m-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"></div>' +
+        '<button class="btn btn-primary" data-act="mfa-enroll-verify">登録して管理画面に進む</button> ' +
+        '<button class="btn btn-ghost" data-act="admin-logout">ログアウト</button>' +
+      '</div>';
+  }
+
+  function renderMfaVerify() {
+    return '<h1>2段階認証</h1>' +
+      '<p class="page-lead">認証アプリに表示されている6桁のコードを入力してください。</p>' +
+      '<div class="card">' +
+        '<div class="field"><label for="m-code">認証コード(6桁)</label><input id="m-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456"></div>' +
+        '<button class="btn btn-primary" data-act="mfa-verify">確認する</button> ' +
+        '<button class="btn btn-ghost" data-act="admin-logout">ログアウト</button>' +
+      '</div>';
   }
 
   function renderAdminList() {
@@ -884,7 +941,17 @@
       if (res.error) { alert("ログインできませんでした: " + res.error.message); return; }
       await reload(); return;
     }
-    if (ds.act === "admin-logout") { await db.auth.signOut(); await reload(); return; }
+    if (ds.act === "admin-logout") { mfaEnroll = null; await db.auth.signOut(); await reload(); return; }
+
+    if (ds.act === "mfa-verify" || ds.act === "mfa-enroll-verify") {
+      var code = (document.getElementById("m-code").value || "").replace(/\s/g, "");
+      if (!/^\d{6}$/.test(code)) { alert("6桁の数字を入力してください。"); return; }
+      var factorId = ds.act === "mfa-verify" ? mfaFactorId : mfaEnroll.id;
+      var v = await db.auth.mfa.challengeAndVerify({ factorId: factorId, code: code });
+      if (v.error) { alert("コードを確認できませんでした: " + v.error.message); return; }
+      mfaEnroll = null;
+      await reload(); return;
+    }
 
     if (ds.act === "admin-cancel") {
       await call("yoyaku_admin_cancel", { p_id: ds.id });

@@ -223,3 +223,22 @@ begin
   return r;
 end;
 $$;
+-- 莠育ｴ・メ繧ｱ繝・ヨ縺ｮ邂｡逅・桃菴懊↓2谿ｵ髫手ｪ崎ｨｼ(TOTP)繧貞ｿ・医↓縺吶ｋ
+-- 邂｡逅・・・蛻､螳・yoyaku_is_admin)縺ｫ縲・谿ｵ髫手ｪ崎ｨｼ繧呈ｸ医∪縺帙◆繝ｭ繧ｰ繧､繝ｳ(aal2)縺ｧ縺ゅｋ縺薙→縲阪ｒ蜉縺医ｋ縲・-- 莠育ｴ・ｸ隕ｧ縺ｮ髢ｲ隕ｧ繝ｻ遨ｺ縺肴棧縺ｮ螟画峩繝ｻ邂｡逅・・く繝｣繝ｳ繧ｻ繝ｫ縺ｪ縺ｩ縲∫ｮ｡逅・・畑縺ｮ繝昴Μ繧ｷ繝ｼ縺ｨ髢｢謨ｰ縺ｯ縺吶∋縺ｦ縺薙・髢｢謨ｰ繧剃ｽｿ縺｣縺ｦ縺・ｋ縺溘ａ縲・-- 繝代せ繝ｯ繝ｼ繝峨□縺代・繝ｭ繧ｰ繧､繝ｳ縺ｧ縺ｯ菴輔ｂ縺ｧ縺阪↑縺上↑繧九・
+-- 邂｡逅・・→縺励※逋ｻ骭ｲ縺輔ｌ縺ｦ縺・ｋ縺・2谿ｵ髫手ｪ崎ｨｼ縺ｮ迥ｶ諷九・蝠上ｏ縺ｪ縺・縲・-- 逕ｻ髱｢蛛ｴ縺ｧ縲梧ｨｩ髯舌↑縺励阪→縲・谿ｵ髫手ｪ崎ｨｼ縺ｮ逋ｻ骭ｲ繝ｻ蜈･蜉帙′蠢・ｦ√阪ｒ隕句・縺代ｋ縺溘ａ縺ｫ菴ｿ縺・create function public.yoyaku_is_admin_user()
+returns boolean
+language sql stable security definer
+set search_path = public
+as $$
+  select exists (select 1 from public.yoyaku_admins where user_id = auth.uid());
+$$;
+
+create or replace function public.yoyaku_is_admin()
+returns boolean
+language sql stable security definer
+set search_path = public
+as $$
+  select exists (select 1 from public.yoyaku_admins where user_id = auth.uid())
+     and coalesce(auth.jwt() ->> 'aal', '') = 'aal2';
+$$;
+
