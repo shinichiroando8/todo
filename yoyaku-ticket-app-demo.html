@@ -218,12 +218,19 @@
 
 <footer class="site">予約チケット — 面談予約・支払いアプリ 動作デモ</footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function () {
   "use strict";
 
-  var STORE_KEY = "yoyaku_ticket_app_demo_v1";
-  var TIMES = ["10:00", "14:00", "19:00"];
+  /* ---------------- Supabase ---------------- */
+  var SUPABASE_URL = "https://zoilxrvhxawvhmcemmtr.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_6jxL8odRgE4GxPa0EwsqWQ_qhkyPBhB";
+  var db = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+  // この端末で予約した予約ID(UUID)だけをブラウザに覚えておく。予約の中身はサーバーにある
+  var MY_RES_KEY = "yoyaku_ticket_my_reservations_v1";
+
   var WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
   function pad2(n) { return String(n).length < 2 ? "0" + n : String(n); }
@@ -244,7 +251,6 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
-  function uid(prefix) { return prefix + "-" + Math.random().toString(36).slice(2, 8); }
 
   /* ---------------- card validation (client-side check only; no charge is made) ---------------- */
   function luhnValid(digits) {
@@ -290,56 +296,68 @@
     return expEnd.getTime() >= Date.now();
   }
 
-  function generateDefaultSlots() {
-    var slots = [];
-    var base = new Date();
-    for (var i = 0; i < 10; i++) {
-      var d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-      var ds = toISODate(d);
-      for (var t = 0; t < TIMES.length; t++) {
-        slots.push({ id: ds + "-" + TIMES[t].replace(":", ""), date: ds, time: TIMES[t], status: "open" });
-      }
+  /* ---------------- data (Supabase) ---------------- */
+  var state = { menus: [], slots: [], reservations: [] };
+  var adminState = "login"; // login | notadmin | ok
+  var adminEmail = "";
+  var slotsEnsured = false;
+
+  function getMyIds() {
+    try { return JSON.parse(localStorage.getItem(MY_RES_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function addMyId(id) {
+    var ids = getMyIds();
+    if (ids.indexOf(id) === -1) ids.push(id);
+    try { localStorage.setItem(MY_RES_KEY, JSON.stringify(ids)); } catch (e) {}
+  }
+
+  function mapMenu(r) { return { id: r.id, name: r.name, duration: r.duration, fee: r.fee, desc: r.description }; }
+  function mapSlot(r) { return { id: r.id, date: r.slot_date, time: r.slot_time, status: r.status }; }
+  function mapRes(r) {
+    return { id: r.id, no: r.no, menuId: r.menu_id, slotId: r.slot_id, date: r.res_date, time: r.res_time,
+             name: r.name, email: r.email, fee: r.fee, cardBrand: r.card_brand, cardLast4: r.card_last4,
+             status: r.status, createdAt: r.created_at };
+  }
+
+  async function loadMenus() {
+    var res = await db.from("yoyaku_menus").select("*").order("sort");
+    if (res.error) throw res.error;
+    state.menus = res.data.map(mapMenu);
+  }
+  async function loadSlots() {
+    var res = await db.from("yoyaku_slots").select("*").order("slot_date").order("slot_time");
+    if (res.error) throw res.error;
+    state.slots = res.data.map(mapSlot);
+  }
+  async function loadMine() {
+    var ids = getMyIds();
+    if (!ids.length) { state.reservations = []; return; }
+    var res = await db.rpc("yoyaku_get_reservations", { p_ids: ids });
+    if (res.error) throw res.error;
+    state.reservations = res.data.map(mapRes);
+  }
+  async function loadAdmin() {
+    state.reservations = [];
+    var s = await db.auth.getSession();
+    if (!s.data.session) { adminState = "login"; return; }
+    adminEmail = s.data.session.user.email || "";
+    var a = await db.rpc("yoyaku_is_admin");
+    if (a.error) throw a.error;
+    if (!a.data) { adminState = "notadmin"; return; }
+    adminState = "ok";
+    var res = await db.from("yoyaku_reservations").select("*");
+    if (res.error) throw res.error;
+    state.reservations = res.data.map(mapRes);
+  }
+  async function refresh() {
+    if (!slotsEnsured) {
+      slotsEnsured = true;
+      await db.rpc("yoyaku_ensure_slots"); // 直近10日分の標準の枠を用意(失敗しても続行)
     }
-    return slots;
+    var tasks = [loadMenus(), loadSlots()];
+    tasks.push(role === "admin" ? loadAdmin() : loadMine());
+    await Promise.all(tasks);
   }
-
-  function defaultState() {
-    var slots = generateDefaultSlots();
-    slots[4].status = "booked"; // tomorrow 14:00
-    return {
-      seq: 2,
-      menus: [
-        { id: "m1", name: "高ストレス相談", duration: 45, fee: 2000, desc: "ストレスチェックで高ストレスと判定された方のための面談です。心身の状態や働き方についてご相談いただけます。" },
-        { id: "m2", name: "復職支援相談", duration: 50, fee: 2000, desc: "休職からの職場復帰に向けて、業務内容や働き方の調整について一緒に整理します。" }
-      ],
-      slots: slots,
-      reservations: [
-        {
-          id: uid("r"), no: "00001", menuId: "m1", slotId: slots[4].id, date: slots[4].date, time: slots[4].time,
-          name: "田中 花子", email: "hanako@example.com", fee: 2000, cardBrand: "Visa", cardLast4: "4242",
-          status: "confirmed", createdAt: Date.now()
-        },
-        {
-          id: uid("r"), no: "00002", menuId: "m2", slotId: slots[0].id, date: slots[0].date, time: slots[0].time,
-          name: "佐藤 健太", email: "kenta@example.com", fee: 2000, cardBrand: "Mastercard", cardLast4: "4444",
-          status: "cancelled", createdAt: Date.now()
-        }
-      ]
-    };
-  }
-
-  function loadState() {
-    try {
-      var raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return defaultState();
-      var parsed = JSON.parse(raw);
-      if (!parsed || !parsed.menus || !parsed.slots || !parsed.reservations) return defaultState();
-      return parsed;
-    } catch (e) { return defaultState(); }
-  }
-
-  var state = loadState();
-  function saveState() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
 
   function findMenu(id) { for (var i = 0; i < state.menus.length; i++) if (state.menus[i].id === id) return state.menus[i]; return null; }
   function findSlot(id) { for (var i = 0; i < state.slots.length; i++) if (state.slots[i].id === id) return state.slots[i]; return null; }
@@ -348,23 +366,37 @@
   function isChangeable(res) {
     if (res.status !== "confirmed") return false;
     var dt = slotDateTime(res.date, res.time);
-    return (dt.getTime() - Date.now()) > 3 * 60 * 60 * 1000; // 3時間前まで
+    return (dt.getTime() - Date.now()) > 3 * 60 * 60 * 1000; // 3時間前まで(サーバー側でも確認する)
   }
-
-  function freeSlot(slotId) { var s = findSlot(slotId); if (s && s.status === "booked") s.status = "open"; }
 
   /* ---------------- role / router ---------------- */
   var role = "member";
   var view = "book";
+  var renderToken = 0;
 
-  function go(v) {
+  async function go(v) {
     view = v;
     resetBookFlow();
     cancelConfirmId = null;
     var tabs = document.querySelectorAll("#tabs-" + role + " button");
     tabs.forEach(function (b) { b.classList.toggle("active", b.dataset.view === v); });
-    render();
     window.scrollTo({ top: 0, behavior: "auto" });
+    await reload();
+  }
+
+  // サーバーから最新を読み直して描画する
+  async function reload() {
+    var t = ++renderToken;
+    root.innerHTML = '<div class="card empty">読み込み中…</div>';
+    try {
+      if (!db) throw new Error("Supabase を読み込めませんでした。ネットワークを確認してください。");
+      await refresh();
+      if (t !== renderToken) return;
+      render();
+    } catch (e) {
+      if (t !== renderToken) return;
+      root.innerHTML = '<div class="card empty">読み込みに失敗しました: ' + esc(e && e.message ? e.message : e) + "</div>";
+    }
   }
 
   document.getElementById("role-member").addEventListener("click", function () {
@@ -421,6 +453,10 @@
     if (role === "member") {
       if (view === "mypage") root.innerHTML = renderMypage();
       else root.innerHTML = renderBook();
+    } else if (adminState === "login") {
+      root.innerHTML = renderAdminLogin();
+    } else if (adminState === "notadmin") {
+      root.innerHTML = renderNotAdmin();
     } else {
       if (view === "admin-slots") root.innerHTML = renderAdminSlots();
       else root.innerHTML = renderAdminList();
@@ -445,7 +481,7 @@
         '<h3>' + esc(m.name) + '</h3>' +
         '<p>' + esc(m.desc) + '</p>' +
         '<div class="fee">' + yen(m.fee) + '</div>' +
-        '<button class="btn btn-primary btn-block" data-act="pick-menu" data-id="' + m.id + '">この内容で予約する</button>' +
+        '<button class="btn btn-primary btn-block" data-act="pick-menu" data-id="' + esc(m.id) + '">この内容で予約する</button>' +
         '</div>';
     });
     html += '</div>';
@@ -465,7 +501,7 @@
     groups.forEach(function (g) {
       html += '<div class="day-block"><div class="day-label">' + fmtDate(g.date) + '</div><div class="slot-row">';
       g.slots.forEach(function (s) {
-        html += '<button class="slot-btn" data-act="pick-slot" data-id="' + s.id + '">' + s.time + '</button>';
+        html += '<button class="slot-btn" data-act="pick-slot" data-id="' + esc(s.id) + '">' + esc(s.time) + '</button>';
       });
       html += '</div></div>';
     });
@@ -479,14 +515,14 @@
     html += '<h1>予約内容の確認とお支払い</h1>';
     html += '<div class="card">';
     html += '<div class="summary-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);"><span style="color:var(--ink-soft);">メニュー</span><strong>' + esc(menu.name) + '</strong></div>';
-    html += '<div class="summary-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);"><span style="color:var(--ink-soft);">日時</span><strong>' + fmtDate(slot.date) + ' ' + slot.time + '〜</strong></div>';
+    html += '<div class="summary-row" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);"><span style="color:var(--ink-soft);">日時</span><strong>' + fmtDate(slot.date) + ' ' + esc(slot.time) + '〜</strong></div>';
     html += '<div class="summary-row" style="display:flex;justify-content:space-between;padding:8px 0;"><span style="color:var(--ink-soft);">お支払い金額</span><strong style="font-family:var(--font-mono);font-size:18px;color:var(--accent-strong);">' + yen(menu.fee) + '</strong></div>';
     html += '</div>';
 
     html += '<div class="card">';
     html += '<h2>ご連絡先</h2>';
-    html += '<div class="field"><label for="f-name">お名前</label><input id="f-name" type="text" placeholder="山田 太郎"></div>';
-    html += '<div class="field"><label for="f-email">メールアドレス</label><input id="f-email" type="email" placeholder="you@example.com"></div>';
+    html += '<div class="field"><label for="f-name">お名前</label><input id="f-name" type="text" maxlength="50" placeholder="山田 太郎"></div>';
+    html += '<div class="field"><label for="f-email">メールアドレス</label><input id="f-email" type="email" maxlength="200" placeholder="you@example.com"></div>';
 
     html += '<div class="panel-2">';
     html += '<div class="plabel">お支払い</div>';
@@ -496,7 +532,7 @@
     html += '<div class="field"><label for="f-exp">有効期限(MM/YY)</label><input id="f-exp" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="08/29" maxlength="5"></div>';
     html += '<div class="field"><label for="f-cvc">セキュリティコード</label><input id="f-cvc" type="text" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4"></div>';
     html += '</div>';
-    html += '<div class="note-box">カード番号はチェックサム(下1桁の検算)と有効期限のみをその場で検証します。実際の請求・第三者への送信・保存は行われません。テストには 4242 4242 4242 4242 などをご利用ください。</div>';
+    html += '<div class="note-box">カード番号はチェックサム(下1桁の検算)と有効期限のみをその場で検証します。実際の請求は行われません。カード番号・有効期限・セキュリティコードは送信も保存もされず、予約には「ブランド」と「下4桁」だけが記録されます。テストには 4242 4242 4242 4242 などをご利用ください。</div>';
     html += '</div>';
 
     if (bookError) html += '<div class="field-error">' + esc(bookError) + '</div>';
@@ -507,6 +543,7 @@
 
   function renderBookDone() {
     var res = findReservation(bookDoneId);
+    if (!res) return '<div class="card empty">予約を表示できませんでした。マイページをご確認ください。</div>';
     var menu = findMenu(res.menuId);
     var html = '<h1>予約が確定しました</h1><p class="page-lead">確認メールをお送りする想定の画面です(デモのため実際の送信はありません)。</p>';
     html += ticketMarkup(res, menu);
@@ -524,7 +561,7 @@
     html += '<div class="ticket-view-row"><div class="ticket-field"><span class="label">Consultation</span><span class="value big">' + esc(menu ? menu.name : "") + '</span></div></div>';
     html += '<div class="ticket-view-row">';
     html += '<div><span class="label">Date</span><span class="value">' + fmtDate(res.date) + '</span></div>';
-    html += '<div><span class="label">Time</span><span class="value">' + res.time + '〜</span></div>';
+    html += '<div><span class="label">Time</span><span class="value">' + esc(res.time) + '〜</span></div>';
     html += '</div>';
     html += '<div class="ticket-view-row">';
     html += '<div><span class="label">Fee</span><span class="value">' + yen(res.fee) + '</span></div>';
@@ -540,7 +577,7 @@
 
   /* ---------------- mypage ---------------- */
   function renderMypage() {
-    var html = '<h1>マイページ</h1><p class="page-lead">ご予約の確認・日程変更・キャンセルができます。</p>';
+    var html = '<h1>マイページ</h1><p class="page-lead">この端末でご予約した内容の確認・日程変更・キャンセルができます。</p>';
     var list = state.reservations.slice().sort(function (a, b) { return slotDateTime(a.date, a.time) - slotDateTime(b.date, b.time); });
     if (!list.length) { html += '<div class="card empty">まだ予約がありません。</div>'; return html; }
 
@@ -551,7 +588,7 @@
       html += '<div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start;">';
       html += '<div><div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-faint);margin-bottom:4px;">No. ' + esc(res.no) + '</div>';
       html += '<h3 style="margin:0 0 4px;font-size:16px;">' + esc(menu ? menu.name : "") + '</h3>';
-      html += '<div style="font-size:13.5px;color:var(--ink-soft);">' + fmtDate(res.date) + ' ' + res.time + '〜 / ' + yen(res.fee) + '</div></div>';
+      html += '<div style="font-size:13.5px;color:var(--ink-soft);">' + fmtDate(res.date) + ' ' + esc(res.time) + '〜 / ' + yen(res.fee) + '</div></div>';
       html += '<span class="badge ' + (res.status === "confirmed" ? "confirmed" : "cancelled") + '">' + (res.status === "confirmed" ? "予約確定" : "キャンセル済み") + '</span>';
       html += '</div>';
 
@@ -561,14 +598,14 @@
 
       if (res.status === "confirmed" && changeable && rescheduleId !== res.id) {
         html += '<div class="res-actions">';
-        html += '<button class="btn btn-ghost btn-sm" data-act="start-reschedule" data-id="' + res.id + '">日程を変更する</button>';
-        html += '<button class="btn btn-warn btn-sm" data-act="start-cancel" data-id="' + res.id + '">キャンセルする</button>';
+        html += '<button class="btn btn-ghost btn-sm" data-act="start-reschedule" data-id="' + esc(res.id) + '">日程を変更する</button>';
+        html += '<button class="btn btn-warn btn-sm" data-act="start-cancel" data-id="' + esc(res.id) + '">キャンセルする</button>';
         html += '</div>';
       }
 
       if (cancelConfirmId === res.id) {
         html += '<div class="confirm-box">この予約をキャンセルします。よろしいですか？<div class="row">' +
-          '<button class="btn btn-warn btn-sm" data-act="do-cancel" data-id="' + res.id + '">はい、キャンセルする</button>' +
+          '<button class="btn btn-warn btn-sm" data-act="do-cancel" data-id="' + esc(res.id) + '">はい、キャンセルする</button>' +
           '<button class="btn btn-ghost btn-sm" data-act="stop-cancel">戻る</button></div></div>';
       }
 
@@ -590,7 +627,7 @@
         html += '<div class="day-block"><div class="day-label">' + fmtDate(g.date) + '</div><div class="slot-row">';
         g.slots.forEach(function (s) {
           var isCurrent = s.id === res.slotId;
-          html += '<button class="slot-btn" data-act="do-reschedule" data-res="' + res.id + '" data-slot="' + s.id + '">' + s.time + (isCurrent ? "(現在)" : "") + '</button>';
+          html += '<button class="slot-btn" data-act="do-reschedule" data-res="' + esc(res.id) + '" data-slot="' + esc(s.id) + '">' + esc(s.time) + (isCurrent ? "(現在)" : "") + '</button>';
         });
         html += '</div></div>';
       });
@@ -601,6 +638,22 @@
   }
 
   /* ---------------- admin views ---------------- */
+  function renderAdminLogin() {
+    return '<h1>管理者ログイン</h1><p class="page-lead">予約一覧と空き枠設定は、面談担当者(管理者)のみ利用できます。</p>' +
+      '<div class="card">' +
+        '<div class="field"><label for="l-email">メールアドレス</label><input id="l-email" type="email" autocomplete="username"></div>' +
+        '<div class="field"><label for="l-pass">パスワード</label><input id="l-pass" type="password" autocomplete="current-password"></div>' +
+        '<button class="btn btn-primary" data-act="admin-login">ログイン</button>' +
+      '</div>';
+  }
+
+  function renderNotAdmin() {
+    return '<h1>管理権限がありません</h1>' +
+      '<div class="card"><p style="margin:0 0 14px; font-size:14px;">' + esc(adminEmail) +
+      ' には管理権限がありません。管理者のアカウントでログインし直してください。</p>' +
+      '<button class="btn btn-ghost" data-act="admin-logout">ログアウト</button></div>';
+  }
+
   function renderAdminList() {
     var confirmed = state.reservations.filter(function (r) { return r.status === "confirmed"; });
     var cancelled = state.reservations.filter(function (r) { return r.status === "cancelled"; });
@@ -617,26 +670,29 @@
     html += '</div>';
 
     var list = state.reservations.slice().sort(function (a, b) { return slotDateTime(b.date, b.time) - slotDateTime(a.date, a.time); });
-    if (!list.length) { html += '<div class="card empty">まだ予約がありません。</div>'; return html; }
-
-    html += '<div class="table-wrap"><table class="reg-table"><thead><tr>' +
-      '<th>No.</th><th>メニュー</th><th>日時</th><th>お名前</th><th>連絡先</th><th>金額</th><th>状態</th><th></th></tr></thead><tbody>';
-    list.forEach(function (res) {
-      var menu = findMenu(res.menuId);
-      html += '<tr>';
-      html += '<td style="font-family:var(--font-mono);">' + esc(res.no) + '</td>';
-      html += '<td>' + esc(menu ? menu.name : "") + '</td>';
-      html += '<td style="font-family:var(--font-mono);white-space:nowrap;">' + fmtDate(res.date) + ' ' + res.time + '</td>';
-      html += '<td>' + esc(res.name) + '</td>';
-      html += '<td>' + esc(res.email) + '</td>';
-      html += '<td style="font-family:var(--font-mono);">' + yen(res.fee) + '</td>';
-      html += '<td><span class="badge ' + (res.status === "confirmed" ? "confirmed" : "cancelled") + '">' + (res.status === "confirmed" ? "確定" : "キャンセル") + '</span></td>';
-      html += '<td>' + (res.status === "confirmed"
-        ? '<button class="row-btn" data-act="admin-cancel" data-id="' + res.id + '">キャンセル扱いにする</button>'
-        : '') + '</td>';
-      html += '</tr>';
-    });
-    html += '</tbody></table></div>';
+    if (!list.length) {
+      html += '<div class="card empty">まだ予約がありません。</div>';
+    } else {
+      html += '<div class="table-wrap"><table class="reg-table"><thead><tr>' +
+        '<th>No.</th><th>メニュー</th><th>日時</th><th>お名前</th><th>連絡先</th><th>金額</th><th>状態</th><th></th></tr></thead><tbody>';
+      list.forEach(function (res) {
+        var menu = findMenu(res.menuId);
+        html += '<tr>';
+        html += '<td style="font-family:var(--font-mono);">' + esc(res.no) + '</td>';
+        html += '<td>' + esc(menu ? menu.name : "") + '</td>';
+        html += '<td style="font-family:var(--font-mono);white-space:nowrap;">' + fmtDate(res.date) + ' ' + esc(res.time) + '</td>';
+        html += '<td>' + esc(res.name) + '</td>';
+        html += '<td>' + esc(res.email) + '</td>';
+        html += '<td style="font-family:var(--font-mono);">' + yen(res.fee) + '</td>';
+        html += '<td><span class="badge ' + (res.status === "confirmed" ? "confirmed" : "cancelled") + '">' + (res.status === "confirmed" ? "確定" : "キャンセル") + '</span></td>';
+        html += '<td>' + (res.status === "confirmed"
+          ? '<button class="row-btn" data-act="admin-cancel" data-id="' + esc(res.id) + '">キャンセル扱いにする</button>'
+          : '') + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '<div style="margin-top:22px;"><button class="btn btn-ghost" data-act="admin-logout">ログアウト</button></div>';
     return html;
   }
 
@@ -661,7 +717,7 @@
       html += '<div class="slot-admin-day"><div class="day-label">' + fmtDate(d) + '</div>';
       slots.forEach(function (s) {
         var label = s.time + (s.status === "booked" ? " 予約済" : s.status === "blocked" ? " 休止" : "");
-        html += '<button class="slot-chip ' + s.status + '" data-act="toggle-slot" data-id="' + s.id + '"' + (s.status === "booked" ? " disabled" : "") + '>' + label + '</button>';
+        html += '<button class="slot-chip ' + s.status + '" data-act="toggle-slot" data-id="' + esc(s.id) + '"' + (s.status === "booked" ? " disabled" : "") + '>' + esc(label) + '</button>';
       });
       html += '</div>';
     });
@@ -681,7 +737,12 @@
   /* ---------------- events ---------------- */
   function bindEvents() {
     root.querySelectorAll("[data-act]").forEach(function (el) {
-      el.addEventListener("click", function () { handleAction(el.dataset); });
+      el.addEventListener("click", function () {
+        handleAction(el.dataset).catch(function (e) {
+          alert("処理に失敗しました: " + (e && e.message ? e.message : e));
+          reload();
+        });
+      });
     });
     wireCardFieldsLive();
   }
@@ -739,7 +800,14 @@
     });
   }
 
-  function handleAction(ds) {
+  // サーバー側の関数を呼ぶ。失敗したらエラーを投げる
+  async function call(fn, args) {
+    var res = await db.rpc(fn, args);
+    if (res.error) throw res.error;
+    return res.data;
+  }
+
+  async function handleAction(ds) {
     if (ds.act === "pick-menu") { bookMenuId = ds.id; bookStep = "slot"; render(); return; }
     if (ds.act === "back-menu") { bookStep = "menu"; bookMenuId = null; render(); return; }
     if (ds.act === "pick-slot") { bookSlotId = ds.id; bookStep = "form"; bookError = ""; render(); return; }
@@ -768,72 +836,82 @@
         render(); return;
       }
 
-      var menu = findMenu(bookMenuId);
-      var slot = findSlot(bookSlotId);
-      if (!slot || slot.status !== "open") { bookError = "この枠は既に埋まっています。日時を選び直してください。"; bookStep = "slot"; render(); return; }
-
-      state.seq += 1;
-      var res = {
-        id: uid("r"), no: String(state.seq).padStart ? String(state.seq).padStart(5, "0") : ("0000" + state.seq).slice(-5),
-        menuId: menu.id, slotId: slot.id, date: slot.date, time: slot.time,
-        name: name, email: email, fee: menu.fee, cardBrand: brandLabel(brand), cardLast4: cardDigits.slice(-4),
-        status: "confirmed", createdAt: Date.now()
-      };
-      state.reservations.push(res);
-      slot.status = "booked";
-      saveState();
-      bookDoneId = res.id; bookStep = "done"; bookError = "";
-      render();
+      var btn = root.querySelector('[data-act="confirm-book"]');
+      if (btn) btn.disabled = true;
+      var created;
+      try {
+        // カード番号・有効期限・セキュリティコードは送らない。ブランドと下4桁だけ
+        created = await call("yoyaku_book", {
+          p_menu_id: bookMenuId, p_slot_id: bookSlotId, p_name: name, p_email: email,
+          p_card_brand: brandLabel(brand), p_card_last4: cardDigits.slice(-4)
+        });
+      } catch (e) {
+        alert(e.message);
+        bookStep = "slot"; bookSlotId = null;
+        await reload();
+        return;
+      }
+      addMyId(created.id);
+      bookDoneId = created.id; bookStep = "done"; bookError = "";
+      await reload();
       return;
     }
 
     if (ds.act === "goto-mypage") { go("mypage"); return; }
-    if (ds.act === "book-another") { resetBookFlow(); render(); return; }
+    if (ds.act === "book-another") { resetBookFlow(); await reload(); return; }
 
     if (ds.act === "start-cancel") { cancelConfirmId = ds.id; render(); return; }
     if (ds.act === "stop-cancel") { cancelConfirmId = null; render(); return; }
     if (ds.act === "do-cancel") {
-      var r = findReservation(ds.id);
-      if (r) { r.status = "cancelled"; freeSlot(r.slotId); saveState(); }
-      cancelConfirmId = null; render(); return;
+      cancelConfirmId = null;
+      await call("yoyaku_cancel", { p_id: ds.id });
+      await reload(); return;
     }
 
     if (ds.act === "start-reschedule") { rescheduleId = ds.id; cancelConfirmId = null; render(); return; }
     if (ds.act === "stop-reschedule") { rescheduleId = null; render(); return; }
     if (ds.act === "do-reschedule") {
-      var res2 = findReservation(ds.res);
-      var newSlot = findSlot(ds.slot);
-      if (res2 && newSlot && (newSlot.status === "open" || newSlot.id === res2.slotId)) {
-        freeSlot(res2.slotId);
-        res2.slotId = newSlot.id; res2.date = newSlot.date; res2.time = newSlot.time;
-        newSlot.status = "booked";
-        saveState();
-      }
-      rescheduleId = null; render(); return;
+      rescheduleId = null;
+      await call("yoyaku_reschedule", { p_id: ds.res, p_new_slot_id: ds.slot });
+      await reload(); return;
     }
 
+    if (ds.act === "admin-login") {
+      var res = await db.auth.signInWithPassword({
+        email: document.getElementById("l-email").value.trim(),
+        password: document.getElementById("l-pass").value
+      });
+      if (res.error) { alert("ログインできませんでした: " + res.error.message); return; }
+      await reload(); return;
+    }
+    if (ds.act === "admin-logout") { await db.auth.signOut(); await reload(); return; }
+
     if (ds.act === "admin-cancel") {
-      var r2 = findReservation(ds.id);
-      if (r2) { r2.status = "cancelled"; freeSlot(r2.slotId); saveState(); }
-      render(); return;
+      await call("yoyaku_admin_cancel", { p_id: ds.id });
+      await reload(); return;
     }
 
     if (ds.act === "toggle-slot") {
       var s2 = findSlot(ds.id);
-      if (s2 && s2.status !== "booked") { s2.status = s2.status === "open" ? "blocked" : "open"; saveState(); }
-      render(); return;
+      if (s2 && s2.status !== "booked") {
+        var up = await db.from("yoyaku_slots").update({ status: s2.status === "open" ? "blocked" : "open" }).eq("id", s2.id);
+        if (up.error) throw up.error;
+      }
+      await reload(); return;
     }
     if (ds.act === "add-slot") {
-      var dEl = document.getElementById("a-date"), tEl = document.getElementById("a-time");
-      var dv = dEl.value, tv = tEl.value;
+      var dv = document.getElementById("a-date").value, tv = document.getElementById("a-time").value;
       if (!dv || !tv) return;
-      var id = dv + "-" + tv.replace(":", "");
-      if (!findSlot(id)) { state.slots.push({ id: id, date: dv, time: tv, status: "open" }); saveState(); }
-      render(); return;
+      var ins = await db.from("yoyaku_slots").insert({ slot_date: dv, slot_time: tv });
+      if (ins.error) {
+        if (ins.error.code === "23505") alert("その枠は既にあります。");
+        else throw ins.error;
+      }
+      await reload(); return;
     }
   }
 
-  render();
+  go("book");
 })();
 </script>
 </body>
