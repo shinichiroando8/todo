@@ -300,6 +300,7 @@
   var state = { menus: [], slots: [], reservations: [] };
   var adminState = "login"; // login | notadmin | mfa-enroll | mfa-verify | ok
   var adminEmail = "";
+  var recoveryMode = false; // パスワード再設定メールのリンクから開いたとき true
   var mfaFactorId = null;   // 登録済みの認証アプリ(TOTP)
   var mfaEnroll = null;     // 登録中の認証アプリ { id, qr, secret }
   var slotsEnsured = false;
@@ -342,6 +343,7 @@
     state.reservations = [];
     var s = await db.auth.getSession();
     if (!s.data.session) { adminState = "login"; return; }
+    if (recoveryMode) { adminState = "recovery"; return; }
     adminEmail = s.data.session.user.email || "";
     var a = await db.rpc("yoyaku_is_admin_user");
     if (a.error) throw a.error;
@@ -485,6 +487,8 @@
       root.innerHTML = renderAdminLogin();
     } else if (adminState === "notadmin") {
       root.innerHTML = renderNotAdmin();
+    } else if (adminState === "recovery") {
+      root.innerHTML = renderPasswordReset();
     } else if (adminState === "mfa-enroll") {
       root.innerHTML = renderMfaEnroll();
     } else if (adminState === "mfa-verify") {
@@ -675,7 +679,18 @@
       '<div class="card">' +
         '<div class="field"><label for="l-email">メールアドレス</label><input id="l-email" type="email" autocomplete="username"></div>' +
         '<div class="field"><label for="l-pass">パスワード</label><input id="l-pass" type="password" autocomplete="current-password"></div>' +
-        '<button class="btn btn-primary" data-act="admin-login">ログイン</button>' +
+        '<button class="btn btn-primary" data-act="admin-login">ログイン</button> ' +
+        '<button class="btn btn-ghost" data-act="admin-forgot">パスワードを忘れた方</button>' +
+        '<p style="margin:12px 0 0; font-size:12.5px; color:var(--ink-soft);">「パスワードを忘れた方」は、上のメールアドレス欄に入力したアドレス宛てに、再設定用のメールを送ります。</p>' +
+      '</div>';
+  }
+
+  function renderPasswordReset() {
+    return '<h1>新しいパスワードの設定</h1><p class="page-lead">新しいパスワードを入力してください(8文字以上)。</p>' +
+      '<div class="card">' +
+        '<div class="field"><label for="r-pass">新しいパスワード</label><input id="r-pass" type="password" autocomplete="new-password"></div>' +
+        '<div class="field"><label for="r-pass2">新しいパスワード(確認)</label><input id="r-pass2" type="password" autocomplete="new-password"></div>' +
+        '<button class="btn btn-primary" data-act="set-password">パスワードを変更する</button>' +
       '</div>';
   }
 
@@ -941,7 +956,26 @@
       if (res.error) { alert("ログインできませんでした: " + res.error.message); return; }
       await reload(); return;
     }
-    if (ds.act === "admin-logout") { mfaEnroll = null; await db.auth.signOut(); await reload(); return; }
+    if (ds.act === "admin-forgot") {
+      var fe = document.getElementById("l-email").value.trim();
+      if (!fe) { alert("上のメールアドレス欄に、管理者のメールアドレスを入力してください。"); return; }
+      var rs = await db.auth.resetPasswordForEmail(fe, { redirectTo: location.origin + location.pathname });
+      if (rs.error) { alert("メールを送れませんでした: " + rs.error.message); return; }
+      alert("登録されているアドレスであれば、パスワード再設定のメールを送りました。メールのリンクを開いてください(届くまで数分かかることがあります)。");
+      return;
+    }
+    if (ds.act === "set-password") {
+      var p1 = document.getElementById("r-pass").value, p2 = document.getElementById("r-pass2").value;
+      if (p1.length < 8) { alert("パスワードは8文字以上にしてください。"); return; }
+      if (p1 !== p2) { alert("確認用のパスワードが一致しません。"); return; }
+      var up2 = await db.auth.updateUser({ password: p1 });
+      if (up2.error) { alert("パスワードを変更できませんでした: " + up2.error.message); return; }
+      recoveryMode = false;
+      history.replaceState(null, "", location.pathname + location.search);
+      alert("パスワードを変更しました。続けて2段階認証に進みます。");
+      await reload(); return;
+    }
+    if (ds.act === "admin-logout") { recoveryMode = false; mfaEnroll = null; await db.auth.signOut(); await reload(); return; }
 
     if (ds.act === "mfa-verify" || ds.act === "mfa-enroll-verify") {
       var code = (document.getElementById("m-code").value || "").replace(/\s/g, "");
@@ -976,6 +1010,16 @@
       }
       await reload(); return;
     }
+  }
+
+  // 再設定メールのリンクから開かれたら、新しいパスワードの入力画面を出す
+  if (db) {
+    db.auth.onAuthStateChange(function (ev) {
+      if (ev === "PASSWORD_RECOVERY" && !recoveryMode) {
+        recoveryMode = true;
+        document.getElementById("role-admin").click();
+      }
+    });
   }
 
   go("book");
